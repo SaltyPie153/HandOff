@@ -24,7 +24,7 @@
 
 ## 아직 결정하지 않은 사항
 
-- 패키지 버전, 프론트엔드 빌드·UI 도구, 세션 방식, 실제 제품 테스트 명령과 CI/CD.
+- 정확한 패키지 패치와 설치 검증, 세션 방식, CI/CD. 빌드·UI·패키지 구성과 제품 테스트 명령 계약은 앱 기본 골격 계획에서 선정했으며 아직 구현·실행 전이다.
 - Codex 연결 방식 검증, Discord 알림 설치·권한과 로그인 미연결 사용자 처리.
 - 도메인·GCP 프로젝트·VM 사양·최초 관리자 식별값·OAuth 앱 설정·백업 시각과 복구 절차.
 - 가입 거절·계정 연결 해제·프로젝트 관리자 양도·첨부 제한 등 [남은 확인 사항](../product/technical-design.md).
@@ -48,3 +48,11 @@
 
 - `feature/technical-design`은 `develop`에서 생성한 뒤 필요한 기존 `feature/agent-harness` 커밋을 fast-forward로 포함했다. Harness가 develop에 아직 병합되지 않았기 때문이다.
 - 이번 작업으로 `main` 또는 `develop`에 병합하지 않는다. 기술 설계 변경 자체는 기존 Harness 이후의 문서 변경으로 검토한다.
+
+## 앱 기본 골격 계획 — 2026-09-21
+
+- [Spec Kit 계획](../../specs/001-app-bootstrap/plan.md)을 기준으로 구현한다.
+- npm workspaces의 웹·API 두 앱, Vite, React와 MUI Material/Emotion을 선정했다.
+- 사용자가 UI 라이브러리를 지금 선정하도록 요청했으며, MUI와 shadcn/ui 비교 근거는 기능 조사 기록에 둔다.
+- Node24 LTS, TypeScript5.9, Nest12, Prisma7, PostgreSQL17 계열을 선택했다. 실제 패치·이미지 digest는 설치 검증 후 고정한다.
+- 이번 작업은 설계만 완료했으며 앱 설치·실행·브랜치 병합·push를 수행하지 않았다.
