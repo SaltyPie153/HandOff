@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "productSpec": "docs/product/spec.md",
+  "requiredFiles": [
+    "AGENTS.md", "README.md", ".gitignore",
+    "docs/product/spec.md", "docs/harness/design.md",
+    "docs/harness/workflow.md", "docs/harness/checks.md",
+    "docs/harness/task-template.md", "docs/harness/decisions.md",
+    "docs/harness/plans/2026-09-21-bootstrap.md",
+    "scripts/check-harness.ps1", "scripts/test-harness.ps1"
+  ],
+  "productChecksConfigured": false
+}
