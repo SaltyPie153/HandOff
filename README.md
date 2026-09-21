@@ -15,6 +15,25 @@
 
 위 기능은 제품 계획이다. 현재 실행 가능한 범위는 아래 Harness 점검 도구다.
 
+## 확정 기술 스택과 정책
+
+| 영역 | 선택 |
+|---|---|
+| 프론트엔드 | React + TypeScript |
+| 백엔드 | Node.js + NestJS + TypeScript, Express 어댑터 |
+| DB·ORM | PostgreSQL 직접 운영 + Prisma |
+| 인증 | Google·Discord 로그인, 가입 후 관리자 승인, 명시적 계정 연결 |
+| 권한 | 프로젝트별 배정. 승인 회원은 생성 가능, 생성자가 프로젝트 관리 담당자 |
+| 배포 | GCP 서울 asia-northeast3, VM 한 대, Docker Compose |
+| 개발 환경 | DB만 Docker, React·NestJS는 로컬 실행 |
+| 저장·백업 | VM 영구 디스크에 DB·첨부, 하루 1회 Cloud Storage 백업·7일 보관 |
+
+프로젝트 관리 담당자는 승인 회원을 자기 프로젝트에 추가·제외할 수 있다. 서비스 가입 승인·관리자 권한 부여와는 별도다.
+최초 서비스 관리자는 사용자 계정을 배포 시 명시 지정한다. 이메일이 같아도 Google·Discord 계정을 자동 합치지 않는다.
+
+비용 최소화와 신규 무료 크레딧 활용을 기준으로 하며 실제 적용 여부·만료는 배포 전에 확인한다.
+이 표는 선택한 설계이며 앱·Docker 설정·GCP 리소스가 이미 만들어졌다는 뜻은 아니다. 남은 결정과 구현 순서는 [기술 설계](docs/product/technical-design.md)를 참고한다.
+
 ## 브랜치 운영
 
 ```text
@@ -31,7 +50,7 @@ feature/<기능명> → develop → 통합 테스트 → main
 
 ## 시작
 
-Git과 PowerShell 7이 필요하다. 의존 패키지 설치는 없다.
+현재 Harness 실행에는 Git과 PowerShell 7이 필요하다. Harness의 추가 패키지 설치는 없다. 제품용 Node.js·Docker 버전과 실행 명령은 앱 구성 단계에서 별도로 등록한다.
 
 최초 Harness가 `develop`에 병합되기 전에는 다음과 같이 기능 브랜치를 받는다.
 
@@ -61,6 +80,7 @@ pwsh -NoProfile -File scripts/test-harness.ps1
 
 - [에이전트 시작 지침](AGENTS.md)
 - [제품 원본 명세](docs/product/spec.md)
+- [기술 설계 및 운영 결정](docs/product/technical-design.md)
 - [Harness 설계](docs/harness/design.md)
 - [작업 절차](docs/harness/workflow.md)
 - [검증 기준](docs/harness/checks.md)
