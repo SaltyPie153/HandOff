@@ -32,7 +32,7 @@ Harness 통과를 제품 테스트 통과로 보고하지 않는다. 실제 명�
 
 ## 기록과 종료
 
-- 브랜치는 `develop`에서 `feature/<기능명>`으로 나눈다. 기능별 검증·리뷰 후 `develop`에 병합하고 통합 테스트를 거쳐 최종적으로만 `main`에 병합한다.
+- 기본 브랜치는 `main`이며 `develop`은 그 기준에서 분기한다. 기능 브랜치는 `develop`에서 `feature/<기능명>`으로 나눈다. 기능별 검증·리뷰 후 `develop`에 병합하고 통합 테스트를 거쳐 최종적으로만 `main`에 병합한다.
 - `main` 직접 push와 기능 브랜치의 `main` 직행 병합은 금지한다. PR 대상은 기본적으로 `develop`이다. 사용자 승인 없는 병합·강제 push는 하지 않는다.
 
 - [작업 양식](docs/harness/task-template.md)을 사용해 `work/<task-id>/resume.md`를 갱신한다.

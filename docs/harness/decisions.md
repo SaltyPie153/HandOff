@@ -26,5 +26,5 @@
 
 - `feature/<기능명>`에서 작업하고 `develop`에 병합한 뒤 통합 테스트를 거쳐 최종적으로 `main`에 병합한다.
 - 초기 `harness/bootstrap` 작업은 `feature/agent-harness`로 옮긴다. 빈 기준 커밋으로 `develop`을 먼저 만들고 실제 파일은 기능 브랜치에 커밋한다.
-- 이번 push는 기준 `develop`과 `feature/agent-harness`까지만 수행한다. `main` 생성·push·병합은 하지 않는다.
+- 기본 브랜치는 `main`이다. 초기 설정을 바로잡아 `main`과 `develop`을 같은 빈 기준 커밋에 두고 GitHub 기본 브랜치를 `main`으로 설정했다. 실제 기능 변경은 `feature/agent-harness`에 유지한다.
 - 브랜치 보호와 CI는 별도 설정 사항이며, 문서화만으로 강제 적용됐다고 간주하지 않는다.
