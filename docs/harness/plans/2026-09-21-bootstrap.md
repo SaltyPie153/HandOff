@@ -10,7 +10,7 @@
 
 **Spec:** [Harness 설계안](../design.md), [제품 명세 v1.1](../../product/spec.md).
 
-**Execution root:** `C:/Users/SaltyPie/Documents/Codex/2026-09-21/handoff-git/HandOff`
+**Execution root:** 저장소 루트 (`AGENTS.md`가 있는 폴더). 로컬 저장소는 2026-09-21에 `C:/Users/SaltyPie/Desktop/HandOff`로 이전했다.
 
 **구현 전 상태 기록:** 원격 `https://github.com/SaltyPie153/HandOff.git`의 빈 로컬 clone. main에는 아직 커밋이 없다. PowerShell 7과 Git이 설치돼 있다. 실행 계획 검토 전이며 Harness 구현은 시작하지 않았다.
 

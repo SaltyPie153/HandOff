@@ -3,6 +3,10 @@
 4~5명 팀이 사용하는 개발 계약·인수인계 웹서비스를 개발한다.
 현재는 개발 Harness만 있으며 앱·외부 연동은 구현되지 않았다.
 
+## 작업 위치
+
+- 모든 명령과 파일 생성은 이 저장소 루트를 기준으로 한다. 문서 원본은 docs/, 안내 산출물은 outputs/, 임시 작업 기록은 work/에 둔다. 저장소 밖에 프로젝트 문서 사본을 만들지 않는다.
+
 ## 시작
 
 1. [제품 원본 명세](docs/product/spec.md), [기술 설계](docs/product/technical-design.md), [결정 기록](docs/harness/decisions.md)을 확인한다.
