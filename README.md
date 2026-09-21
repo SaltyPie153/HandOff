@@ -25,7 +25,8 @@ feature/<기능명> → develop → 통합 테스트 → main
 - 기능별 검증과 리뷰 후 `develop`에 병합한다. PR의 기본 대상은 `develop`이다.
 - `develop`에 통합된 결과를 테스트하고, 최종 반영 시에만 `main`에 병합한다.
 - `main`에 직접 push하거나 기능 브랜치를 바로 병합하지 않는다. 강제 push를 기본 작업 절차에 포함하지 않는다.
-- 최초 구성은 빈 기준 커밋을 가진 `develop`과 실제 Harness 변경을 가진 `feature/agent-harness`로 시작한다. `main` 생성·최종 병합은 릴리스 단계에서 진행한다.
+- 저장소 기본 브랜치는 `main`이다. `develop`은 `main`의 기준 커밋에서 출발하고, 기능 브랜치는 `develop`에서 분기한다.
+- 최초 구성에서는 `main`과 `develop`이 같은 빈 기준 커밋을 가리키며 실제 Harness 변경은 `feature/agent-harness`에 있다. `main`에는 통합 테스트를 거친 결과만 최종 병합한다.
 - 이 규칙은 팀 운영 지침이다. GitHub 브랜치 보호 설정과 자동 CI는 아직 구성하지 않았다.
 
 ## 시작
