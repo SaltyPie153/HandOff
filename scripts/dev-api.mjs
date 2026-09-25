@@ -119,17 +119,20 @@ async function run() {
   };
   const plannedStops = new WeakSet();
   let compilerOutput = '';
+  let compilationLog = '';
   let restart = Promise.resolve();
   compiler.stdout.on('data', chunk => {
     const text = chunk.toString();
-    process.stdout.write(text);
     compilerOutput += text;
     let newline;
     while ((newline = compilerOutput.indexOf('\n')) !== -1) {
       const line = compilerOutput.slice(0, newline);
+      compilationLog = (compilationLog + compilerOutput.slice(0, newline + 1)).slice(-65_536);
       compilerOutput = compilerOutput.slice(newline + 1);
       const summary = /Found (\d+) errors?\. Watching for file changes\./.exec(line);
       if (!summary) continue;
+      if (summary[1] !== '0') process.stdout.write(compilationLog);
+      compilationLog = '';
       restart = restart.then(async () => {
         if (stopping) return;
         if (runtime) {
