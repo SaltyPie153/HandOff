@@ -35,7 +35,7 @@ async function closeApp(app: INestApplication): Promise<void> {
 }
 
 export async function startApi(config: ApiConfig): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.register(config), { logger: false });
+  const app = await NestFactory.create(AppModule.register(config), { logger: false, abortOnError: false });
   try {
     await app.listen(config.apiPort, host);
     return app;
