@@ -83,5 +83,8 @@ npm ci, generate, build, 연결 테스트로 조합을 입증한다. 충돌 시 
   `sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`이다.
   [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html),
   [Docker Hub tag](https://hub.docker.com/_/postgres/tags?name=17.11-bookworm).
-- 현재 PC에 Docker CLI가 없어 이미지 실행·pull 검증은 아직 하지 못했다.
+- 2026-09-25 재개 환경에서 Docker Desktop 4.81.0, Engine 29.6.1, Compose 5.2.0으로
+  고정 digest 이미지를 pull하고 개발·시험 DB가 각각 healthy가 되는 것을 확인했다.
+  두 환경은 loopback의 5432/5433 포트와 별도 project·named volume을 사용하며,
+  일반 down 후에도 두 volume이 유지됐다.
 - 설치 시 npm의 peer dependency와 빌드 결과를 다시 확인한다. 위 버전 조회만으로 조합의 실행 성공을 주장하지 않는다.
