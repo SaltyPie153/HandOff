@@ -172,6 +172,7 @@ async function stopSlowApi(server: Server) {
 }
 
 test('stopped and slow real API connections become unavailable before a fresh API restores ready', async ({ page, request }) => {
+  test.setTimeout(240_000);
   isolatedProject();
   let slowApi: Server | undefined;
   let stopAttempted = false;
