@@ -1,0 +1,30 @@
+# Tasks: 소셜 로그인과 가입 승인
+
+**Input**: specs/002-auth-onboarding/spec.md
+**Prerequisites**: plan.md, research.md, data-model.md, contracts/auth-api.md, quickstart.md
+**Status**: 독립 정책 T001~T004 구현·단위 검증 완료. 앱 골격 통합 전 DB·API·화면 작업은 선행 조건 대기.
+
+## Phase 1: 독립 정책
+
+- [x] T001 [US1] apps/api/tests/auth-domain.test.mjs에 대기 회원의 접근 차단과 승인 회원의 생성 자격에 대한 실패 테스트를 작성한다.
+- [x] T002 [US2] apps/api/tests/auth-domain.test.mjs에 관리자 전용 승인·권한 부여와 미배정 콘텐츠 차단의 실패 테스트를 작성한다.
+- [x] T003 [US3] apps/api/tests/auth-domain.test.mjs에 타인 제공자 계정 연결 충돌과 동일 회원 연결의 실패 테스트를 작성한다.
+- [x] T004 apps/api/src/auth/domain.ts에 T001~T003의 정책 함수를 구현하고 Node 단위 검증을 통과시킨다.
+
+## Phase 2: 앱 골격 통합 후 DB·API
+
+- [ ] T005 apps/api/prisma/schema.prisma와 새 migration.sql에 회원·제공자 연결·세션·시도·감사 기록 및 복합 유일 제약을 추가한다.
+- [ ] T006 [US1] apps/api/src/auth/providers/와 auth.controller.ts에 Google/Discord code 로그인 및 대기 세션을 구현하고 계약 테스트를 통과시킨다.
+- [ ] T007 [US3] apps/api/src/auth/oauth-attempt.service.ts에 세션에 묶인 일회용 연결 시도와 타인 연결 충돌을 구현·검증한다.
+- [ ] T008 [US2] apps/api/src/admin/와 scripts/bootstrap-admin.mjs에 관리자 대기 목록·승인·관리자 부여·명시적 최초 관리자 지정을 구현·검증한다.
+
+## Phase 3: 화면·통합
+
+- [ ] T009 [US1] apps/web/src/auth/LoginPage.tsx와 PendingPage.tsx에 로그인·대기 화면을 구현·검증한다.
+- [ ] T010 [US2] apps/web/src/auth/PendingUsersPage.tsx에 관리자 목록·승인 화면을 구현·검증한다.
+- [ ] T011 [US3] apps/web/src/auth/에 계정 연결·충돌 안내를 구현·검증한다.
+- [ ] T012 tests/e2e/auth.spec.ts와 specs/002-auth-onboarding/quickstart.md에 R20·R23·R24 종단 검증과 실제 제공자 시험 결과를 반영한다.
+
+## Dependencies
+
+T001~T004는 현재 브랜치에서 독립 실행한다. T005~T012는 feature/app-bootstrap의 API·웹·DB 골격이 develop에 통합되거나 같은 기준으로 이 브랜치에 들어온 뒤 순서대로 진행한다. 다른 PC 작업 중인 공용 파일을 선점하지 않는다.
