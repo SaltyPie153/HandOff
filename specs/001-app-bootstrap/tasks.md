@@ -24,18 +24,18 @@
 
 **Purpose**: 선행 변경을 보존하고 재현 가능한 패키지·도구 구성을 준비한다.
 
-- [ ] T001 현재 Git 상태와 선행 Harness·SDD 공유 대상, 로컬 전용 변경을 work/001-app-bootstrap/resume.md에 기록한다. AGENTS.md의 로컬 경로 변경·outputs를 자동 stage하지 않고, 사용자 승인 후 선행 문서를 develop에 통합·검증한 다음 feature/app-bootstrap을 생성한다. 승인 전 병합하거나 이 게이트를 완료 처리하지 않는다.
-- [ ] T002 research.md의 버전 계열에 대해 공식 registry의 engines/peerDependencies와 지원 상태를 확인하고 정확한 Node/npm·앱 의존성·PostgreSQL patch/digest를 specs/001-app-bootstrap/research.md에 기록한다. 호환되지 않으면 설치 강행 대신 plan.md와 조사 결정을 수정한다.
-- [ ] T003 package.json, apps/web/package.json, apps/api/package.json, package-lock.json, .node-version에 npm workspaces·exact 버전·packageManager를 구성하고 .gitignore에 node_modules·빌드·시험 산출물 제외를 추가한다. 기존 제외 규칙과 로컬 변경을 보존한다. lockfile 생성 후 npm ci 재현을 확인한다.
-- [ ] T004 apps/api/tsconfig.json, apps/api/tsconfig.test.json, apps/web/tsconfig.json, apps/web/vitest.config.ts, playwright.config.ts에 API ESM/NodeNext·decorator metadata·tsc 후 node:test, 웹 Vitest/Testing Library, Playwright Chromium 검증 환경을 구성한다. package.json에 build/typecheck/test 실행 진입점을 연결한다. test는 웹 컴포넌트, API 단위, scripts/tests의 DB 비의존 테스트를 모두 실행하고 어느 하나 실패해도 실패를 전달한다. 실DB가 필요한 database-setup.test.mjs와 health 계약·통합 테스트는 test:integration 대상으로 분리한다. T010에서는 기반 검사만, 전체 build/typecheck는 앱 진입점 생성 후 T015에서 검증한다.
+- [X] T001 현재 Git 상태와 선행 Harness·SDD 공유 대상, 로컬 전용 변경을 work/001-app-bootstrap/resume.md에 기록한다. AGENTS.md의 로컬 경로 변경·outputs를 자동 stage하지 않고, 사용자 승인 후 선행 문서를 develop에 통합·검증한 다음 feature/app-bootstrap을 생성한다. 승인 전 병합하거나 이 게이트를 완료 처리하지 않는다.
+- [X] T002 research.md의 버전 계열에 대해 공식 registry의 engines/peerDependencies와 지원 상태를 확인하고 정확한 Node/npm·앱 의존성·PostgreSQL patch/digest를 specs/001-app-bootstrap/research.md에 기록한다. 호환되지 않으면 설치 강행 대신 plan.md와 조사 결정을 수정한다.
+- [X] T003 package.json, apps/web/package.json, apps/api/package.json, package-lock.json, .node-version에 npm workspaces·exact 버전·packageManager를 구성하고 .gitignore에 node_modules·빌드·시험 산출물 제외를 추가한다. 기존 제외 규칙과 로컬 변경을 보존한다. lockfile 생성 후 npm ci 재현을 확인한다.
+- [X] T004 apps/api/tsconfig.json, apps/api/tsconfig.test.json, apps/web/tsconfig.json, apps/web/vitest.config.ts, playwright.config.ts에 API ESM/NodeNext·decorator metadata·tsc 후 node:test, 웹 Vitest/Testing Library, Playwright Chromium 검증 환경을 구성한다. package.json에 build/typecheck/test 실행 진입점을 연결한다. test는 웹 컴포넌트, API 단위, scripts/tests의 DB 비의존 테스트를 모두 실행하고 어느 하나 실패해도 실패를 전달한다. 실DB가 필요한 database-setup.test.mjs와 health 계약·통합 테스트는 test:integration 대상으로 분리한다. T010에서는 기반 검사만, 전체 build/typecheck는 앱 진입점 생성 후 T015에서 검증한다.
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 **Purpose**: 세 사용자 흐름이 공유할 개발 설정·DB·실행 경계를 만든다.
 **Gate**: T001~T004 완료 후 시작한다.
 
-- [ ] T005 scripts/tests/dev-environment.test.mjs에 필수 설정 누락·잘못된 URL·포트·DB 설정 불일치, production/원격 DB 거부, 기존 .env 보존과 비밀값 비노출 실패 사례를 작성한다. 허용 범위는 NODE_ENV=development/test, loopback, DB 이름 handoff_dev 또는 handoff_test이다.
-- [ ] T006 scripts/lib/dev-environment.mjs, scripts/dev-init.mjs, .env.example에 T005의 설정 검증과 최초 한 번의 임의 개발 비밀번호 생성을 구현한다. 환경 변수 이름만 진단하고 전체 URL·비밀번호·토큰을 기록하지 않는다. 루트 .env를 앱·CLI가 같은 규칙으로 읽고 기존 파일은 덮어쓰지 않는다.
+- [X] T005 scripts/tests/dev-environment.test.mjs에 필수 설정 누락·잘못된 URL·포트·DB 설정 불일치, production/원격 DB 거부, 기존 .env 보존과 비밀값 비노출 실패 사례를 작성한다. 허용 범위는 NODE_ENV=development/test, loopback, DB 이름 handoff_dev 또는 handoff_test이다.
+- [X] T006 scripts/lib/dev-environment.mjs, scripts/dev-init.mjs, .env.example에 T005의 설정 검증과 최초 한 번의 임의 개발 비밀번호 생성을 구현한다. 환경 변수 이름만 진단하고 전체 URL·비밀번호·토큰을 기록하지 않는다. 루트 .env를 앱·CLI가 같은 규칙으로 읽고 기존 파일은 덮어쓰지 않는다.
 - [ ] T007 compose.dev.yml, compose.test.yml, scripts/db.mjs에 PostgreSQL17 patch/digest·named volume·loopback 바인딩·유한 ready 대기를 구성한다. 개발/시험 project·DB·volume·포트를 분리하고 db:down은 volume을 보존한다. scripts/db.mjs는 T006 검증 후에만 Compose를 호출한다.
 - [ ] T008 apps/api/prisma/schema.prisma와 apps/api/prisma/migrations/0001_bootstrap_probe/migration.sql에 BootstrapProbe의 id “UUID, primary key”, value “문자열, 1~128자”, createdAt “UTC timestamp, 필수”를 구현한다. DB에도 길이 제약을 두고 업무 테이블·관계·실제 데이터를 만들지 않는다.
 - [ ] T009 apps/api/prisma.config.ts, apps/api/src/database/prisma.service.ts, scripts/prisma.mjs에 Prisma7 adapter-pg·ESM client 생성·명시적 .env 로드·연결 종료 처리를 구성한다. generate/migrate 명령을 분리하고 migration 전에 T006의 대상 검증을 수행한다. API 시작 시 migration/reset/seed를 자동 실행하지 않는다.
