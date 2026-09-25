@@ -1,17 +1,10 @@
-# Quickstart Validation: 앱 기본 골격
+# 로컬 Quickstart: 앱 기본 골격
 
-**상태: 구현 예정 검증 가이드. 아래 npm 명령·앱·Compose 파일은 아직 없다.**
-구현 단계에서 이 명령 계약을 제공한 뒤 실제 결과를 기록한다.
-현재 문서만 읽고 실행 성공·앱 완성을 주장하지 않는다.
+현재 실행 가능한 범위는 개발 DB, API·웹 프로세스, 기본 상태 화면입니다. 아래 명령은 Windows PowerShell 7에서 **저장소 루트**를 현재 디렉터리로 두고 실행합니다. Node.js는 `>=24.15 <25`, npm은 10.9.2를 사용하며 Docker Desktop을 Linux 컨테이너 모드로 시작합니다. 최초 `npm ci`에는 패키지 다운로드가 필요합니다. 외부 로그인·Discord·GCP 계정은 필요하지 않습니다.
 
-## 준비
+## 준비와 첫 실행
 
-Windows, PowerShell7, 선택 버전의 Node24/npm, Docker Desktop Linux containers와 Git.
-정확한 버전은 구현 시 고정 파일을 따른다. 저장소 루트에서 실행한다.
-첫 설치만 다운로드가 필요하며 외부 로그인·Discord·GCP 계정은 필요하지 않다.
-개발 포트가 비어 있어야 한다. 기존 .env를 덮어쓰지 않는다.
-
-## 최초 실행
+터미널 1에서 순서대로 실행하고, 실패한 단계가 있으면 원인을 해결한 뒤 다시 진행합니다.
 
 ```powershell
 npm ci
@@ -19,79 +12,73 @@ npm run dev:init
 npm run db:up
 npm run db:generate
 npm run db:migrate
-npm run build
 ```
 
-각 단계가 실패하면 그 자리에서 중단하고 비밀값 없이 표시된 원인을 해결한다.
-서로 다른 두 터미널에서 다음을 실행한다.
+`dev:init`은 로컬 `.env`가 없을 때만 무작위 DB 비밀번호를 담아 생성하고 기존 파일은 보존합니다. `.env`는 Git 제외 파일이며 `.env.example`의 비밀번호는 자리표시자입니다. 실제 비밀번호·토큰·`DATABASE_URL`은 문서, 로그, 이슈에 붙여 넣지 마세요. `db:up`은 개발용 Compose DB가 준비될 때까지 기다립니다. `db:migrate`는 저장소의 기존 migration을 적용하며 DB를 초기화하지 않습니다.
+
+준비 후 터미널 2와 3을 열고, 각각 저장소 루트에서 다음 명령을 실행한 채 둡니다.
+
+터미널 2 — API:
 
 ```powershell
 npm run dev:api
 ```
 
+터미널 3 — 웹:
+
 ```powershell
 npm run dev:web
 ```
 
-http://127.0.0.1:5173 에서 HandOff / 개발 환경 / 준비 완료를 확인한다.
-포트를 변경했다면 설정된 주소를 따른다.
-이 화면은 프로젝트 선택·로그인 기능이 아니다.
+기본 주소 http://127.0.0.1:5173 에서 `HandOff`와 `개발 환경` 화면을 엽니다. `상태 확인` 버튼의 요청 대상 `/api/health/ready`는 아직 구현되지 않아, API가 실행 중이어도 `확인 불가`로 표시될 수 있습니다. 이 화면으로 DB·스키마 상태를 검증하지 마세요. API와 웹은 `127.0.0.1`에서 실행되며 기본 포트는 각각 3000, 5173입니다. DB 포트는 5432입니다.
 
-## 보존 확인
+## 다시 시작하고 종료하기
+
+평소 다시 시작할 때는 `npm ci`, `dev:init`, `db:generate`, `db:migrate`를 매번 반복할 필요가 없습니다. 코드·의존성·migration 변경에 따라 필요한 단계만 다시 수행하고 `npm run db:up` 다음 API·웹을 시작합니다.
+
+종료 시 터미널 3(웹)과 터미널 2(API)에서 각각 `Ctrl+C`를 누르고 종료를 확인합니다. 그다음 저장소 루트의 터미널 1에서 실행합니다.
 
 ```powershell
-$probeId = [guid]::NewGuid().ToString()
-$probeValue = 'bootstrap-persistence-check'
-npm run probe -- create --id $probeId --value $probeValue
-npm run verify:bootstrap -- --id $probeId --value $probeValue
+npm run db:down
 ```
 
-각 실행의 종료 코드를 확인한다. 정상에서는 0.
-웹·API를 Ctrl+C로 종료하고 db:down → db:up을 수행한 뒤 API·웹을 다시 시작한다.
-매회 같은 id/value로 verify:bootstrap을 실행하여 총3회 성공을 확인한다.
-재시작 도중 create를 재실행하면 보존 증거가 되지 않는다.
-volume 삭제·DB reset·자동 seed를 이 과정에 넣지 않는다.
-실패·복구 확인이 모두 끝날 때까지 같은 probe를 유지한다.
+이 명령은 `handoff-dev` 개발 Compose 프로젝트를 내리고 DB volume을 보존합니다. `docker compose down -v`, volume 삭제, DB reset은 일반 종료 절차에 포함되지 않습니다. 다른 프로세스나 컨테이너를 종료하지 마세요.
 
-## 실패·복구 확인
+## 포트 충돌
 
-1. 같은 id/value로 verify:bootstrap이 exit0임을 먼저 확인한 뒤 DB를 db:down으로 중지한다. 화면 '다시 확인'은 10초 이내 DB 실패를 표시한다.
-   API는 계속 응답한다. verify:bootstrap은 exit1이며 실패 항목이 DB 연결이어야 한다.
-2. db:up으로 DB를 복구한다. 다시 확인하면 ready로 복귀하고 같은 id/value의 verify:bootstrap이 다시 exit0이어야 한다.
-3. API를 종료한다. 다시 확인하면 서비스 실패/DB 확인 불가가 10초 이내 표시된다.
-   API 재시작 후 다시 확인하면 복구된다.
-4. 별도 시험 설정에서 필수 변수 누락·잘못된 URL·포트 충돌을 재현한다.
-   변수 이름/원인만 표시하며 시험 비밀값·전체 URL은 출력되지 않아야 한다.
-5. 시험 전용 빈 DB에서 migration 전에는 SCHEMA_NOT_READY,
-   migration 후에는 ready임을 확인한다. 개발 DB를 지우지 않는다.
-6. 느린 응답과 연속 확인을 시험하여 오래된 결과가 최신 상태를 덮지 않는지 확인한다.
+API가 `DEV_API_FAILED: PORT_IN_USE: API_PORT`, 웹이 `DEV_WEB_FAILED: PORT_IN_USE: WEB_PORT`로 종료되면 각각 설정된 포트가 점유된 상태입니다. 웹과 API는 빈 다음 포트로 자동 이동하지 않습니다. DB 포트 충돌은 `npm run db:up`의 Docker 포트 바인딩 오류로 나타날 수 있습니다. `.env`의 세 포트가 서로 같으면 `PORT_COLLISION: PORT` 진단도 발생합니다.
 
-## 자동 검증과 문서 검증
+현재 점유 포트와 PID는 다음 읽기 전용 명령으로 확인합니다. `.env`에서 포트를 바꾼 경우 숫자 목록도 맞춰 바꿉니다.
 
 ```powershell
+Get-NetTCPConnection -State Listen -LocalPort 3000,5173,5432 -ErrorAction SilentlyContinue |
+  Select-Object LocalAddress,LocalPort,OwningProcess
+```
+
+점유자가 자신의 이전 개발 프로세스라면 해당 터미널에서 `Ctrl+C`로 종료합니다. 다른 용도의 프로세스라면 그대로 두고 `.env`의 `API_PORT`, `WEB_PORT` 또는 `DB_PORT`를 비어 있는 서로 다른 포트로 변경한 뒤 해당 서비스를 다시 시작합니다. DB 포트를 바꿀 때는 `DATABASE_URL`의 포트도 같은 값으로 맞춰야 합니다. 설정의 사용자·비밀번호·DB 이름도 서로 일치해야 하며, 기존 volume의 자격 증명을 임의로 바꾸면 접속이 실패할 수 있습니다. 바뀐 웹 주소는 새 `WEB_PORT`로 접속합니다.
+
+## 현재 실행 가능한 검사
+
+저장소 루트에서 필요할 때 실행합니다. `build`는 Prisma client를 생성하고 API·웹을 빌드합니다. `test`는 현재 DB 비의존 스크립트·API·웹 테스트입니다.
+
+```powershell
+npm run build
 npm run typecheck
-npm run test
-npm run test:integration
-npm run test:e2e
+npm test
 pwsh -NoProfile -File scripts/check-harness.ps1
 pwsh -NoProfile -File scripts/test-harness.ps1
 ```
 
-test:integration/test:e2e는 시험 전용 설정·DB·포트를 준비하고 개발 환경과 분리한다.
-[명령 계약](contracts/local-bootstrap.md)을 따른다.
-Harness 결과는 별도로 기록한다. 제품 검증 미연결 상태의 NOT_CONFIGURED를 통과로 바꾸지 않는다.
-실제 팀원 한 명이 새 사본에서 구두 도움 없이 실행하는 SC-001은 별도 수동 검증한다.
+Harness 검사와 앱 빌드·단위 테스트의 범위를 구분해 기록합니다. 현재 테스트 통과만으로 실제 DB 연결, 장애 복구, 보존성 또는 제품 기능 완료를 주장할 수 없습니다.
 
-## 검증 자료 정리
+## 구현 예정: US2/US3 검증
 
-정상 → 장애 → 복구 검증이 모두 끝나면 사용한 검증 자료만 정리한다.
+다음은 [로컬 부트스트랩 계약](contracts/local-bootstrap.md)에 정의된 후속 범위이며 **현재 실행 절차가 아닙니다**.
 
-```powershell
-npm run probe -- cleanup --id $probeId
-```
+- DB·스키마를 검사하고 고정 오류 코드를 반환하는 `/api/health/ready` 및 그 결과를 표시하는 화면, 재확인·타임아웃·장애 복구 흐름
+- `npm run test:integration`: 전용 시험 DB 기반 API·DB 통합 검사
+- `npm run test:e2e`: 전용 시험 환경의 브라우저 정상·장애·복구 검사
+- `npm run verify:bootstrap -- --id ... --value ...`: 보존성 검증
+- `npm run probe -- create|verify|cleanup ...`: 검증 자료 생성·확인·정리
 
-## 증거와 종료
-
-work/001-app-bootstrap/에 사용 버전·명령·종료 코드·상태 확인 소요 시간·3회 보존 결과·
-시험 비밀값 비노출 결과와 미검증 항목을 기록한다. 실제 비밀값은 기록에 남기지 않는다.
-사용한 자기 프로세스만 종료하고 db:down으로 개발 DB를 멈춘다. volume은 보존한다.
+이 npm 스크립트 이름은 `package.json`에 있지만 연결할 구현 파일이나 완성된 시험 흐름이 아직 없습니다. 따라서 이전 초안에 적힌 3회 보존 확인, DB 중단 중 10초 내 장애 표시, 재시작 복구, probe cleanup 명령은 지금 실행·성공을 기록하지 않습니다. 해당 구현이 추가되면 별도 시험 DB와 검증 증거를 준비해 이 문서를 갱신합니다.
