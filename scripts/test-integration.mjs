@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +64,34 @@ async function stopChild(running) {
     catch { child.kill('SIGTERM'); }
   }
   await within(done.catch(() => 1), 5_000);
+}
+
+async function stopRegisteredApi(pidFile, originalPid) {
+  let value;
+  try { value = await readFile(pidFile, 'utf8'); }
+  catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  const pid = Number(value.trim());
+  if (!Number.isSafeInteger(pid) || pid <= 0 || pid === originalPid) {
+    throw new Error('UNSAFE_API_REPLACEMENT_PID');
+  }
+  try { process.kill(pid, 'SIGTERM'); }
+  catch (error) {
+    if (error.code === 'ESRCH') return;
+    throw error;
+  }
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try { process.kill(pid, 0); }
+    catch (error) {
+      if (error.code === 'ESRCH') return;
+      throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error('API_REPLACEMENT_STOP_TIMEOUT');
 }
 
 export async function runCommand(command, args, {
@@ -221,6 +249,7 @@ export async function createTestEnvironment({ withServices = false, signal } = {
   const workRoot = join(root, 'work');
   await mkdir(workRoot, { recursive: true });
   const directory = await mkdtemp(join(workRoot, 'test-run-'));
+  const apiReplacementPidFile = join(directory, 'api-replacement.pid');
   const project = `handoff-test-${process.pid}-${randomBytes(5).toString('hex')}`;
   const envPath = join(directory, '.env');
   const { values, content } = testSettings(randomBytes(24).toString('hex'));
@@ -260,8 +289,9 @@ export async function createTestEnvironment({ withServices = false, signal } = {
       const web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
       steps.push(['web', () => stopChild(web)]);
       await waitReady(`http://${host}:5174/`, 'WEB', web, signal);
+      steps.push(['api_replacement', () => stopRegisteredApi(apiReplacementPidFile, apiPid)]);
     }
-    return { env, project, apiPid, close };
+    return { env, project, apiPid, apiReplacementPidFile, close };
   } catch (error) {
     try { await close(); }
     catch (cleanupError) { throw new Error(`${error.message}; ${cleanupError.message}`); }
