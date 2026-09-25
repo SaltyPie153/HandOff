@@ -33,6 +33,7 @@
 - apps/api/src/auth/domain.ts: 가입 상태·행위 권한·연결 충돌에 대한 순수 정책.
 - apps/api/tests/auth-domain.test.mjs: 정책의 권한 표와 경계 사례. 앱 골격 없이 실행 가능.
 - apps/api/prisma/schema.prisma 및 migrations/: 회원·제공자 계정·세션·시도·감사 기록.
+- apps/api/src/auth/oauth-attempt.ts: 일회용 state·세션 결박과 재사용 차단. 앱 골격 없이 실행 가능.
 - apps/api/src/auth/providers/: Google·Discord code 교환과 검증을 격리.
 - apps/api/src/auth/: 세션 저장·콜백·현재 회원·접근 가드.
 - apps/api/src/admin/: 대기 목록·가입 승인·관리자 권한 부여.
@@ -44,16 +45,26 @@
 **Files:** create apps/api/src/auth/domain.ts; create apps/api/tests/auth-domain.test.mjs.
 **Interfaces:** exports Member, Action, canPerform(member, action, projectAssigned), decideProviderLink(memberId, ownerId). Nest 가드와 연결 서비스가 이 함수를 호출한다.
 
-- [ ] Step 1: 실패하는 테스트를 먼저 쓴다. PENDING은 STATUS/LOGOUT/LINK만 허용, APPROVED는 CREATE_PROJECT 허용, 관리자만 APPROVE/GRANT, 프로젝트 READ는 배정된 승인 회원만 허용. 연결 소유자가 다르면 CONFLICT.
-- [ ] Step 2: node --experimental-strip-types --test apps/api/tests/auth-domain.test.mjs 로 실패를 확인한다.
-- [ ] Step 3: 최소 TypeScript 정책 함수를 구현한다. 검증되지 않은 행위 문자열은 기본 거부한다.
-- [ ] Step 4: 같은 명령으로 성공을 확인하고 Node 24에서 다시 실행한다.
-- [ ] Step 5: 정책 파일과 시험 파일만 커밋한다.
+- [x] Step 1: 실패하는 테스트를 먼저 쓴다. PENDING은 STATUS/LOGOUT/LINK만 허용, APPROVED는 CREATE_PROJECT 허용, 관리자만 APPROVE/GRANT, 프로젝트 READ는 배정된 승인 회원만 허용. 연결 소유자가 다르면 CONFLICT.
+- [x] Step 2: node --experimental-strip-types --test apps/api/tests/auth-domain.test.mjs 로 실패를 확인한다.
+- [x] Step 3: 최소 TypeScript 정책 함수를 구현한다. 검증되지 않은 행위 문자열은 기본 거부한다.
+- [x] Step 4: 같은 명령으로 성공을 확인하고 Node 24에서 다시 실행한다.
+- [x] Step 5: 정책 파일과 시험 파일만 커밋한다.
 
 Test shape:
     assert.equal(canPerform({id:'a', status:'PENDING', isServiceAdmin:false}, 'CREATE_PROJECT', false), false);
     assert.deepEqual(decideProviderLink('a','b'), {kind:'CONFLICT'});
 
+## Task 1B: 독립 일회용 OAuth 시도
+
+**Files:** create apps/api/src/auth/oauth-attempt.ts; create apps/api/tests/oauth-attempt.test.mjs.
+**Interfaces:** startOAuthAttempt(store, input, now) returns state and Google nonce/PKCE challenge; consumeOAuthAttempt(store, callback, now) returns the consumed attempt or a fixed failure code. AttemptStore.create/consume is later backed by PostgreSQL; consume must atomically mark one state used.
+
+- [x] Step 1: 테스트에 state 원문 비저장, 유효한 같은 브라우저 세션 콜백, 재사용·만료·제공자 불일치·연결 회원 불일치 실패를 작성한다.
+- [x] Step 2: Node 24 시험에서 정책 실패를 확인한다.
+- [x] Step 3: 안전한 난수와 SHA-256 state 해시, Google nonce·S256 code challenge, 한 번만 소비되는 저장소 계약을 구현한다. Discord의 미확인 PKCE 지원을 가정하지 않는다.
+- [x] Step 4: 같은 시험과 TypeScript strict 검사를 통과시킨다.
+- [x] Step 5: 독립 코드·시험만 커밋한다.
 ## Task 2: 회원·연결·세션 스키마와 동시성
 
 **Prerequisite:** 앱 골격의 Prisma7 초기 스키마·마이그레이션 및 시험 DB가 기능 브랜치에 통합됨.
@@ -69,7 +80,7 @@ Test shape:
 ## Task 3: 제공자 인증과 안전한 세션
 
 **Prerequisite:** Nest 앱 진입점과 환경 설정/Prisma 서비스가 통합됨.
-**Files:** create apps/api/src/auth/providers/google.ts, discord.ts; create apps/api/src/auth/oauth-attempt.service.ts, session.service.ts, auth.controller.ts, auth.module.ts; modify apps/api/src/app.module.ts; create apps/api/tests/oauth-contract.test.ts 및 session-contract.test.ts.
+**Files:** create apps/api/src/auth/providers/google.ts, discord.ts; create apps/api/src/auth/session.service.ts, auth.controller.ts, auth.module.ts; integrate apps/api/src/auth/oauth-attempt.ts; modify apps/api/src/app.module.ts; create apps/api/tests/oauth-contract.test.ts 및 session-contract.test.ts.
 **Interfaces:** GET /api/auth/me, 제공자 start/callback, POST link start/logout. 계약은 contracts/auth-api.md를 따른다.
 
 - [ ] Step 1: state 위조·재사용·취소, 연결 세션 교체, Google sub/Discord id, 세션 재발급·로그아웃의 실패 테스트를 작성한다.
@@ -116,4 +127,4 @@ Test shape:
 
 ## Spec coverage
 
-FR-001/002/010~013은 Tasks 2~3, FR-003/004/009는 Tasks 1/3/5, FR-005~008은 Tasks 2/4가 담당한다. SC-001~005는 Task 6의 자동·실연동 검증으로, SC-006은 내부 팀원 확인으로 판정한다. 골격 완료 전 Task 1만 독립적으로 실행 가능하며 나머지 미착수 항목을 완료로 표시하지 않는다.
+FR-001/002/010~013은 Tasks 2~3, FR-003/004/009는 Tasks 1/3/5, FR-005~008은 Tasks 2/4가 담당한다. SC-001~005는 Task 6의 자동·실연동 검증으로, SC-006은 내부 팀원 확인으로 판정한다. 골격 완료 전 Task 1과 Task 1B만 독립적으로 실행 가능하며 나머지 미착수 항목을 완료로 표시하지 않는다.
