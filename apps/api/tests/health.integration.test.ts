@@ -42,11 +42,11 @@ type Expected = {
   code: 'OK' | 'DATABASE_UNAVAILABLE' | 'SCHEMA_NOT_READY';
 };
 
-async function readHealth(url: string, expected: Expected, maxMs = 5_500) {
+async function readHealth(url: string, expected: Expected, maxMs = 5_000) {
   const started = performance.now();
   const response = await fetch(url, { signal: AbortSignal.timeout(6_500) });
-  const elapsedMs = performance.now() - started;
   const body: unknown = await response.json();
+  const elapsedMs = performance.now() - started;
   assert.ok(elapsedMs < maxMs, `server diagnostic exceeded ${maxMs}ms: ${elapsedMs.toFixed(0)}ms`);
   assert.equal(response.status, expected.http);
   assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -94,6 +94,8 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
   const project = isolatedProject();
   const health = await startHealthServer(databaseUrl);
   const client = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
+  let schema: pg.Client | undefined;
+  let clientEnded = false;
   let dbStopped = false;
   let tableRenamed = false;
   let failure: unknown;
@@ -104,6 +106,7 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
     await readHealth(health.url, ready);
 
     await client.end();
+    clientEnded = true;
     await compose(project, 'stop');
     dbStopped = true;
     await readHealth(health.url, dbDown);
@@ -111,19 +114,13 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
     dbStopped = false;
     await waitForHealth(health.url, ready);
 
-    const schema = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
+    schema = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
     await schema.connect();
-    try {
-      await schema.query('ALTER TABLE bootstrap_probes RENAME TO bootstrap_probes_health_test_hidden');
-      tableRenamed = true;
-      await readHealth(health.url, schemaMissing);
-    } finally {
-      if (tableRenamed) {
-        await schema.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
-        tableRenamed = false;
-      }
-      await schema.end();
-    }
+    await schema.query('ALTER TABLE bootstrap_probes RENAME TO bootstrap_probes_health_test_hidden');
+    tableRenamed = true;
+    await readHealth(health.url, schemaMissing);
+    await schema.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
+    tableRenamed = false;
     await readHealth(health.url, ready);
   } catch (error) { failure = error; }
   finally {
@@ -132,7 +129,21 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
       try { await compose(project, 'start'); }
       catch { cleanupErrors.push('DB_RESTART'); }
     }
-    try { await client.end(); } catch { cleanupErrors.push('CLIENT_CLOSE'); }
+    if (tableRenamed) {
+      const restorer = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
+      try {
+        await restorer.connect();
+        await restorer.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
+        tableRenamed = false;
+      } catch { cleanupErrors.push('SCHEMA_RESTORE'); }
+      try { await restorer.end(); } catch { cleanupErrors.push('RESTORER_CLOSE'); }
+    }
+    if (schema) {
+      try { await schema.end(); } catch { cleanupErrors.push('SCHEMA_CLIENT_CLOSE'); }
+    }
+    if (!clientEnded) {
+      try { await client.end(); } catch { cleanupErrors.push('CLIENT_CLOSE'); }
+    }
     try { await health.close(); } catch { cleanupErrors.push('API_CLOSE'); }
     if (cleanupErrors.length) {
       const cleanup = new Error(`CLEANUP_FAILED: ${cleanupErrors.join(',')}`);
@@ -153,6 +164,9 @@ integrationTest('blocked real table read times out near two seconds and repeated
     await locker.connect();
     await observer.connect();
     await readHealth(health.url, ready);
+    const baseline = await observer.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()'
+    );
     await locker.query('BEGIN');
     await locker.query('LOCK TABLE bootstrap_probes IN ACCESS EXCLUSIVE MODE');
     locked = true;
@@ -165,7 +179,8 @@ integrationTest('blocked real table read times out near two seconds and repeated
          FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`
       );
       assert.equal(activity.rows[0].active, 0, 'timed-out queries must leave no active backend');
-      assert.ok(activity.rows[0].total <= 6, 'health pool must remain bounded at four connections');
+      assert.ok(activity.rows[0].total <= baseline.rows[0].total,
+        `timed-out query must not grow connection count above baseline ${baseline.rows[0].total}`);
     }
     await locker.query('ROLLBACK');
     locked = false;
@@ -208,6 +223,11 @@ integrationTest('silent PostgreSQL peer ends connection attempts near the two-se
     for (let index = 0; index < 3; index++) {
       const elapsed = await readHealth(`http://127.0.0.1:${apiPort}${healthPath}`, dbDown);
       assert.ok(elapsed >= 1_500 && elapsed < 2_750, `connect budget differs from server budget: ${elapsed.toFixed(0)}ms`);
+      const attemptDeadline = Date.now() + 1_000;
+      while (sockets.size > 0 && Date.now() < attemptDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      assert.equal(sockets.size, 0, `connection attempt ${index + 1} left a socket before the next request`);
     }
   } catch (error) { failure = error; }
   finally {
@@ -221,7 +241,7 @@ integrationTest('silent PostgreSQL peer ends connection attempts near the two-se
     for (const socket of sockets) socket.destroy();
     try { await new Promise<void>((resolve, reject) => peer.close(error => error ? reject(error) : resolve())); }
     catch { cleanupErrors.push('PEER_CLOSE'); }
-    assert.equal(leaked, 0, 'timed-out connection attempts must not survive app shutdown');
+    if (leaked !== 0) cleanupErrors.push(`SOCKET_LEAK_${leaked}`);
     if (cleanupErrors.length) {
       const cleanup = new Error(`CLEANUP_FAILED: ${cleanupErrors.join(',')}`);
       failure = failure ? new AggregateError([failure, cleanup]) : cleanup;

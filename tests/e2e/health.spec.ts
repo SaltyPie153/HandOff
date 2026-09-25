@@ -1,5 +1,7 @@
 import { test, expect, type Page, type APIResponse } from '@playwright/test';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import pg from 'pg';
@@ -146,56 +148,106 @@ async function stopChild(child: ChildProcess) {
   });
 }
 
-test('stopped API becomes unavailable in the browser and a fresh API restores ready', async ({ page, request }) => {
+async function startRegisteredApi(): Promise<ChildProcess> {
+  const pidFile = process.env.HANDOFF_TEST_API_REPLACEMENT_PID_FILE ?? '';
+  expect(pidFile).toMatch(/[\\/]work[\\/]test-run-[^\\/]+[\\/]api-replacement\.pid$/);
+  const child = spawn(process.execPath, ['apps/api/dist/src/main.js'], {
+    cwd: root, env: process.env, windowsHide: true, stdio: 'ignore'
+  });
+  try {
+    expect(Number.isSafeInteger(child.pid) && (child.pid ?? 0) > 0).toBe(true);
+    await writeFile(pidFile, `${child.pid}\n`, { flag: 'wx' });
+  } catch (error) {
+    try { await stopChild(child); }
+    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'API registration cleanup failed'); }
+    throw error;
+  }
+  return child;
+}
+
+async function stopSlowApi(server: Server) {
+  server.closeAllConnections();
+  await new Promise<void>((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
+  });
+}
+
+test('stopped and slow real API connections become unavailable before a fresh API restores ready', async ({ page, request }) => {
   isolatedProject();
   const apiPid = Number(process.env.HANDOFF_TEST_API_PID);
   expect(Number.isSafeInteger(apiPid) && apiPid > 0).toBe(true);
   let replacement: ChildProcess | undefined;
+  let slowApi: Server | undefined;
+  let originalStopped = false;
   let failure: unknown;
   try {
     await waitForApi(true);
     await page.goto('/');
     process.kill(apiPid, 'SIGTERM');
+    originalStopped = true;
     await waitForApi(false);
     await check(page, '확인 불가', '확인 불가');
     await expect(page.getByText(/API 프로세스를 확인하세요/)).toBeVisible();
     await expect(page.getByText(/확인 시도 시각/)).toBeVisible();
     expect((await request.get(healthPath)).status()).not.toBe(200);
 
-    replacement = spawn(process.execPath, ['apps/api/dist/src/main.js'], {
-      cwd: root, env: process.env, windowsHide: true, stdio: 'ignore'
+    let slowRequests = 0;
+    let slowResponses = 0;
+    const delayed = createServer((incoming, outgoing) => {
+      if (incoming.url !== healthPath) {
+        outgoing.writeHead(404).end();
+        return;
+      }
+      slowRequests++;
+      const timer = setTimeout(() => {
+        if (outgoing.destroyed) return;
+        slowResponses++;
+        outgoing.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        outgoing.end(JSON.stringify({
+          status: 'ready', checkedAt: new Date().toISOString(), service: 'ok', database: 'ok', code: 'OK'
+        }));
+      }, 15_000);
+      outgoing.once('close', () => clearTimeout(timer));
     });
+    await new Promise<void>((resolve, reject) => {
+      delayed.listen(3001, '127.0.0.1', resolve).once('error', reject);
+    });
+    slowApi = delayed;
+    const started = performance.now();
+    await page.getByRole('button', { name: '상태 확인' }).click();
+    await expect(page.getByRole('status')).toHaveText('확인 중');
+    await page.waitForTimeout(9_000);
+    await expect(page.getByRole('status')).toHaveText('확인 중');
+    await expect(page.getByRole('status')).toHaveText('확인 불가', { timeout: 2_500 });
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeGreaterThanOrEqual(9_500);
+    expect(elapsed).toBeLessThan(10_750);
+    expect(slowRequests, 'the loopback API server must receive the proxied browser request').toBeGreaterThan(0);
+    expect(slowResponses, 'the browser must abort before the delayed API response').toBe(0);
+    await expect(page.getByText('저장소 상태: 확인 불가')).toBeVisible();
+    await expect(page.getByText(/API 프로세스를 확인하세요/)).toBeVisible();
+    await expect(page.getByText(/확인 시도 시각/)).toBeVisible();
+    await stopSlowApi(slowApi);
+    slowApi = undefined;
+
+    replacement = await startRegisteredApi();
     await waitForApi(true);
     await assertHealth(await request.get(healthPath), 200, 'ok');
     await check(page, '준비 완료', '정상');
   } catch (error) { failure = error; }
   finally {
-    if (replacement) {
-      try { await stopChild(replacement); }
-      catch (cleanupError) { failure = failure ? new AggregateError([failure, cleanupError], 'API cleanup failed') : cleanupError; }
+    if (slowApi) {
+      try { await stopSlowApi(slowApi); }
+      catch (cleanupError) { failure = failure ? new AggregateError([failure, cleanupError], 'slow API cleanup failed') : cleanupError; }
+    }
+    if (originalStopped && !replacement) {
+      try {
+        replacement = await startRegisteredApi();
+        await waitForApi(true);
+      } catch (cleanupError) {
+        failure = failure ? new AggregateError([failure, cleanupError], 'API recovery cleanup failed') : cleanupError;
+      }
     }
   }
   if (failure) throw failure;
-});
-
-test('a delayed API response is aborted by the browser at ten seconds', async ({ page }) => {
-  isolatedProject();
-  await page.route(`**${healthPath}`, async route => {
-    await new Promise(resolve => setTimeout(resolve, 15_000));
-    try { await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
-    catch { /* The browser aborted the request before this delayed response. */ }
-  });
-  await page.goto('/');
-  const started = performance.now();
-  await page.getByRole('button', { name: '상태 확인' }).click();
-  await expect(page.getByRole('status')).toHaveText('확인 중');
-  await page.waitForTimeout(9_000);
-  await expect(page.getByRole('status')).toHaveText('확인 중');
-  await expect(page.getByRole('status')).toHaveText('확인 불가', { timeout: 2_500 });
-  const elapsed = performance.now() - started;
-  expect(elapsed).toBeGreaterThanOrEqual(9_500);
-  expect(elapsed).toBeLessThan(10_750);
-  await expect(page.getByText('저장소 상태: 확인 불가')).toBeVisible();
-  await expect(page.getByText(/API 프로세스를 확인하세요/)).toBeVisible();
-  await expect(page.getByText(/확인 시도 시각/)).toBeVisible();
 });
