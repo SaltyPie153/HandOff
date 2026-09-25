@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,34 +65,6 @@ async function stopChild(running) {
     catch { child.kill('SIGTERM'); }
   }
   await within(done.catch(() => 1), 5_000);
-}
-
-async function stopRegisteredApi(pidFile, originalPid) {
-  let value;
-  try { value = await readFile(pidFile, 'utf8'); }
-  catch (error) {
-    if (error.code === 'ENOENT') return;
-    throw error;
-  }
-  const pid = Number(value.trim());
-  if (!Number.isSafeInteger(pid) || pid <= 0 || pid === originalPid) {
-    throw new Error('UNSAFE_API_REPLACEMENT_PID');
-  }
-  try { process.kill(pid, 'SIGTERM'); }
-  catch (error) {
-    if (error.code === 'ESRCH') return;
-    throw error;
-  }
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    try { process.kill(pid, 0); }
-    catch (error) {
-      if (error.code === 'ESRCH') return;
-      throw error;
-    }
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  throw new Error('API_REPLACEMENT_STOP_TIMEOUT');
 }
 
 export async function runCommand(command, args, {
@@ -249,14 +222,14 @@ export async function createTestEnvironment({ withServices = false, signal } = {
   const workRoot = join(root, 'work');
   await mkdir(workRoot, { recursive: true });
   const directory = await mkdtemp(join(workRoot, 'test-run-'));
-  const apiReplacementPidFile = join(directory, 'api-replacement.pid');
   const project = `handoff-test-${process.pid}-${randomBytes(5).toString('hex')}`;
   const envPath = join(directory, '.env');
   const { values, content } = testSettings(randomBytes(24).toString('hex'));
   const env = { ...process.env, ...values };
   const steps = [['settings', () => rm(directory, { recursive: true, force: true })]];
   let closed = false;
-  let apiPid;
+  let apiControlUrl;
+  let apiControlToken;
   const close = async () => {
     if (closed) return;
     closed = true;
@@ -282,16 +255,45 @@ export async function createTestEnvironment({ withServices = false, signal } = {
       label: 'API_BUILD', timeoutMs: 60_000, env, signal
     });
     if (withServices) {
-      const api = launch(process.execPath, [join(apiRoot, 'dist', 'src', 'main.js')], { env });
-      apiPid = api.child.pid;
-      steps.push(['api', () => stopChild(api)]);
+      let api = launch(process.execPath, [join(apiRoot, 'dist', 'src', 'main.js')], { env });
+      steps.push(['api', async () => { if (api) await stopChild(api); }]);
       await waitReady(`http://${host}:3001/api/health/ready`, 'API', api, signal);
       const web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
       steps.push(['web', () => stopChild(web)]);
       await waitReady(`http://${host}:5174/`, 'WEB', web, signal);
-      steps.push(['api_replacement', () => stopRegisteredApi(apiReplacementPidFile, apiPid)]);
+      apiControlToken = randomBytes(24).toString('hex');
+      const control = createHttpServer((request, response) => {
+        if (request.method !== 'POST' || request.headers['x-test-control-token'] !== apiControlToken ||
+            !['/stop', '/start'].includes(request.url ?? '')) {
+          response.writeHead(404).end();
+          return;
+        }
+        void (async () => {
+          if (request.url === '/stop') {
+            if (api) await stopChild(api);
+            api = undefined;
+          } else {
+            if (api && childIsRunning(api.child)) {
+              response.writeHead(409).end();
+              return;
+            }
+            if (api) await stopChild(api);
+            api = launch(process.execPath, [join(apiRoot, 'dist', 'src', 'main.js')], { env });
+            await waitReady(`http://${host}:3001/api/health/ready`, 'API', api, signal);
+          }
+          response.writeHead(204).end();
+        })().catch(() => response.writeHead(500).end());
+      });
+      await new Promise((resolve, reject) => control.listen(0, host, resolve).once('error', reject));
+      const address = control.address();
+      if (!address || typeof address === 'string') throw new Error('TEST_CONTROL_ADDRESS');
+      apiControlUrl = `http://${host}:${address.port}`;
+      steps.push(['api_control', async () => {
+        control.closeAllConnections();
+        await new Promise((resolve, reject) => control.close(error => error ? reject(error) : resolve()));
+      }]);
     }
-    return { env, project, apiPid, apiReplacementPidFile, close };
+    return { env, project, apiControlUrl, apiControlToken, close };
   } catch (error) {
     try { await close(); }
     catch (cleanupError) { throw new Error(`${error.message}; ${cleanupError.message}`); }
