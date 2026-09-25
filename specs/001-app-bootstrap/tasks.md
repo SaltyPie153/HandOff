@@ -38,7 +38,7 @@
 - [X] T006 scripts/lib/dev-environment.mjs, scripts/dev-init.mjs, .env.example에 T005의 설정 검증과 최초 한 번의 임의 개발 비밀번호 생성을 구현한다. 환경 변수 이름만 진단하고 전체 URL·비밀번호·토큰을 기록하지 않는다. 루트 .env를 앱·CLI가 같은 규칙으로 읽고 기존 파일은 덮어쓰지 않는다.
 - [X] T007 compose.dev.yml, compose.test.yml, scripts/db.mjs에 PostgreSQL17 patch/digest·named volume·loopback 바인딩·유한 ready 대기를 구성한다. 개발/시험 project·DB·volume·포트를 분리하고 db:down은 volume을 보존한다. scripts/db.mjs는 T006 검증 후에만 Compose를 호출한다.
 - [X] T008 apps/api/prisma/schema.prisma와 apps/api/prisma/migrations/0001_bootstrap_probe/migration.sql에 BootstrapProbe의 id “UUID, primary key”, value “문자열, 1~128자”, createdAt “UTC timestamp, 필수”를 구현한다. DB에도 길이 제약을 두고 업무 테이블·관계·실제 데이터를 만들지 않는다.
-- [ ] T009 apps/api/prisma.config.ts, apps/api/src/database/prisma.service.ts, scripts/prisma.mjs에 Prisma7 adapter-pg·ESM client 생성·명시적 .env 로드·연결 종료 처리를 구성한다. generate/migrate 명령을 분리하고 migration 전에 T006의 대상 검증을 수행한다. API 시작 시 migration/reset/seed를 자동 실행하지 않는다.
+- [X] T009 apps/api/prisma.config.ts, apps/api/src/database/prisma.service.ts, scripts/prisma.mjs에 Prisma7 adapter-pg·ESM client 생성·명시적 .env 로드·연결 종료 처리를 구성한다. generate/migrate 명령을 분리하고 migration 전에 T006의 대상 검증을 수행한다. API 시작 시 migration/reset/seed를 자동 실행하지 않는다.
 - [ ] T010 package.json과 scripts/tests/database-setup.test.mjs에 dev:init/db:up/db:down/db:generate/db:migrate 명령을 연결하고, 빈 시험 DB의 명시적 migration·재적용·원격/운영 대상 거부를 검증한다. T005 검사, npm ci, client 생성과 DB 준비 검증 결과를 work/001-app-bootstrap/foundation.md에 기록한다. 이 단계에서는 앱 진입점이 없으므로 전체 build/typecheck 성공을 완료 조건으로 삼지 않는다. database-setup.test.mjs는 여기서 직접 실행하고 T023에서 test:integration에 연결한다.
 
 **Checkpoint**: 설정과 검증 DB를 준비할 수 있으며 웹·API·진단 기능은 아직 미완료다.
