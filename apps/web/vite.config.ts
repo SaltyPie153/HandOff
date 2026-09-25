@@ -1,7 +1,7 @@
 import { createServer } from 'node:net';
 import react from '@vitejs/plugin-react';
 import type { WarningHandlerWithDefault } from 'rolldown';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 const host = '127.0.0.1';
 const onwarn: WarningHandlerWithDefault = (warning, defaultHandler) => {
@@ -42,6 +42,26 @@ async function requireFreeWebPort(port: number): Promise<void> {
   }
 }
 
+function finalBindDiagnostic(port: number): Plugin {
+  return {
+    name: 'handoff-final-bind-diagnostic',
+    configureServer(server) {
+      const listen = server.listen.bind(server);
+      server.listen = async (...args) => {
+        try {
+          return await listen(...args);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'Port ' + port + ' is already in use') {
+            process.stderr.write('DEV_WEB_FAILED: PORT_IN_USE: WEB_PORT\n');
+            process.exit(1);
+          }
+          throw error;
+        }
+      };
+    }
+  };
+}
+
 export default defineConfig(async ({ command }) => {
   const serving = command === 'serve';
   const webPort = serving ? configuredPort('WEB_PORT') : 5173;
@@ -49,7 +69,7 @@ export default defineConfig(async ({ command }) => {
   if (serving) await requireFreeWebPort(webPort);
 
   return {
-    plugins: [react()],
+    plugins: [react(), ...(serving ? [finalBindDiagnostic(webPort)] : [])],
     envPrefix: 'HANDOFF_PUBLIC_',
     server: {
       host,
