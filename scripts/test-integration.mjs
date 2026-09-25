@@ -227,6 +227,7 @@ export async function createTestEnvironment({ withServices = false, signal } = {
   const env = { ...process.env, ...values };
   const steps = [['settings', () => rm(directory, { recursive: true, force: true })]];
   let closed = false;
+  let apiPid;
   const close = async () => {
     if (closed) return;
     closed = true;
@@ -253,13 +254,14 @@ export async function createTestEnvironment({ withServices = false, signal } = {
     });
     if (withServices) {
       const api = launch(process.execPath, [join(apiRoot, 'dist', 'src', 'main.js')], { env });
+      apiPid = api.child.pid;
       steps.push(['api', () => stopChild(api)]);
       await waitReady(`http://${host}:3001/api/health/ready`, 'API', api, signal);
       const web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
       steps.push(['web', () => stopChild(web)]);
       await waitReady(`http://${host}:5174/`, 'WEB', web, signal);
     }
-    return { env, project, close };
+    return { env, project, apiPid, close };
   } catch (error) {
     try { await close(); }
     catch (cleanupError) { throw new Error(`${error.message}; ${cleanupError.message}`); }
@@ -282,7 +284,8 @@ async function main() {
     const files = await discoverIntegrationTests();
     console.log(`INTEGRATION_TESTS: ${files.map(file => file.slice(root.length)).join(', ')}`);
     await runCommand(process.execPath, ['--test', ...files], {
-      label: 'INTEGRATION_TEST', timeoutMs: 120_000, env: environment.env, signal: controller.signal
+      label: 'INTEGRATION_TEST', timeoutMs: 120_000,
+      env: { ...environment.env, HANDOFF_TEST_PROJECT: environment.project }, signal: controller.signal
     });
   } catch (caught) {
     error = caught;
