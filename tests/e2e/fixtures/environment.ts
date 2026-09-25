@@ -7,6 +7,9 @@ export default async function setup() {
   process.once('SIGTERM', interrupt);
   try {
     const environment = await createTestEnvironment({ withServices: true, signal: controller.signal });
+    Object.assign(process.env, environment.env);
+    process.env.HANDOFF_TEST_PROJECT = environment.project;
+    if (environment.apiPid) process.env.HANDOFF_TEST_API_PID = String(environment.apiPid);
     return async () => {
       try {
         await environment.close();
