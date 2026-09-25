@@ -127,7 +127,7 @@ async function run() {
     let newline;
     while ((newline = compilerOutput.indexOf('\n')) !== -1) {
       const line = compilerOutput.slice(0, newline);
-      compilationLog = (compilationLog + compilerOutput.slice(0, newline + 1)).slice(-65_536);
+      compilationLog += compilerOutput.slice(0, newline + 1);
       compilerOutput = compilerOutput.slice(newline + 1);
       const summary = /Found (\d+) errors?\. Watching for file changes\./.exec(line);
       if (!summary) continue;
