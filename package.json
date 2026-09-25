@@ -1,0 +1,35 @@
+{
+  "name": "handoff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "engines": {
+    "node": ">=24.15 <25"
+  },
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "dev:init": "node scripts/dev-init.mjs",
+    "db:up": "node scripts/db.mjs up",
+    "db:down": "node scripts/db.mjs down",
+    "db:generate": "node scripts/prisma.mjs generate",
+    "db:migrate": "node scripts/prisma.mjs migrate",
+    "dev:web": "npm run dev --workspace @handoff/web",
+    "dev:api": "node scripts/dev-api.mjs",
+    "build": "npm run db:generate && npm run build --workspace @handoff/api && npm run build --workspace @handoff/web",
+    "typecheck": "npm run typecheck --workspace @handoff/api && npm run typecheck --workspace @handoff/web",
+    "test": "node --test scripts/tests/*.test.mjs && npm run test --workspace @handoff/api && npm run test --workspace @handoff/web",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:e2e": "playwright test",
+    "verify:bootstrap": "node scripts/verify-bootstrap.mjs",
+    "probe": "node scripts/probe.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.6",
+    "typescript": "5.9.3"
+  }
+}
