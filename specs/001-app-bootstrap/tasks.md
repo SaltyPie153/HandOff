@@ -56,7 +56,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] apps/web/index.html, apps/web/src/main.tsx, apps/web/src/App.tsx, apps/web/src/theme.ts에 React·MUI/Emotion 시작 화면을 구현한다. 아직 확인하지 않은 상태는 미확인으로 표시하고 정적 ready 값을 넣지 않는다. T011을 통과시킨다.
+- [X] T013 [US1] apps/web/index.html, apps/web/src/main.tsx, apps/web/src/App.tsx, apps/web/src/theme.ts에 React·MUI/Emotion 시작 화면을 구현한다. 아직 확인하지 않은 상태는 미확인으로 표시하고 정적 ready 값을 넣지 않는다. T011을 통과시킨다.
 - [ ] T014 [US1] apps/api/src/main.ts, apps/api/src/app.module.ts에 Nest12/Express 앱과 T006 설정 검증을 연결한다. loopback 바인딩, production 거부, 비밀값 없는 오류 코드/시각, 종료 정리를 구현한다. DB 연결 실패를 앱 시작 실패로 전파하지 않는다.
 - [ ] T015 [US1] apps/web/vite.config.ts, scripts/dev-api.mjs, package.json에 strictPort·/api proxy·루트 포트 설정, tsc watch/Node 실행과 dev:web/dev:api 명령을 연결한다. API 자식 프로세스가 실패하면 숨기지 않고 자식만 정리한다. 브라우저에 DB 설정을 전달하지 않는다. T013/T014의 앱 진입점이 생성된 뒤 전체 npm run build와 npm run typecheck를 실행하고 work/001-app-bootstrap/us1.md에 결과를 기록한다.
 - [ ] T016 [US1] README.md와 specs/001-app-bootstrap/quickstart.md에 실제 준비·실행·종료·충돌 해결 명령을 반영한다. US2/US3 미완료 명령은 구현 예정으로 표시하고 존재하지 않는 기능을 실행 가능하다고 안내하지 않는다. FR-001.
