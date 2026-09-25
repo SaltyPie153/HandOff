@@ -13,6 +13,31 @@ const apiLauncher = fileURLToPath(new URL('../dev-api.mjs', import.meta.url));
 const viteCli = fileURLToPath(new URL('../../apps/web/node_modules/vite/bin/vite.js', import.meta.url));
 const webRoot = join(root, 'apps', 'web');
 const host = '127.0.0.1';
+const maxOutput = 65536;
+
+function withDeadline(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} exceeded its cleanup deadline`)), timeoutMs);
+    promise.then(
+      value => { clearTimeout(timer); resolve(value); },
+      error => { clearTimeout(timer); reject(error); }
+    );
+  });
+}
+
+async function closeServer(server) {
+  await withDeadline(new Promise((resolve, reject) =>
+    server.close(error => error ? reject(error) : resolve())
+  ), 2000, 'fixture server close');
+}
+
+async function cleanupIndependently(steps) {
+  const failed = [];
+  for (const [name, step] of steps) {
+    try { await step(); } catch { failed.push(name); }
+  }
+  assert.deepEqual(failed, [], 'test resources failed to close');
+}
 
 async function listen() {
   const server = createServer(socket => {
@@ -39,8 +64,9 @@ async function fixturePorts(occupied) {
     second = await listen();
     return [portOf(occupied), portOf(other), portOf(second)];
   } finally {
-    await Promise.all([other, second].filter(Boolean)
-      .map(server => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))));
+    await cleanupIndependently(
+      [other, second].filter(Boolean).map(server => ['reserved port', () => closeServer(server)])
+    );
   }
 }
 
@@ -64,15 +90,22 @@ function start(script, cwd, envPath) {
   const child = spawn(process.execPath, [`--env-file=${envPath}`, script], {
     cwd, env: isolatedEnvironment(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
   });
-  let output = '';
-  for (const stream of [child.stdout, child.stderr]) {
-    stream?.on('data', chunk => { output = (output + chunk.toString()).slice(-65536); });
-  }
+  const output = { stdout: '', stderr: '', overflow: false };
+  child.stdout?.on('data', chunk => {
+    const next = output.stdout + chunk.toString();
+    if (next.length > maxOutput) output.overflow = true;
+    output.stdout = next.slice(0, maxOutput);
+  });
+  child.stderr?.on('data', chunk => {
+    const next = output.stderr + chunk.toString();
+    if (next.length > maxOutput) output.overflow = true;
+    output.stderr = next.slice(0, maxOutput);
+  });
   return { child, output: () => output };
 }
 
 function waitForClose(child, timeoutMs) {
-  if (child.exitCode !== null) return Promise.resolve(child.exitCode);
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(child.exitCode);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { cleanup(); reject(new Error('development process did not exit after its port conflict')); }, timeoutMs);
     const onClose = code => { cleanup(); resolve(code); };
@@ -88,17 +121,23 @@ function waitForClose(child, timeoutMs) {
 }
 
 async function stopCandidate(child) {
-  if (child.exitCode !== null || child.pid === undefined) return;
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
+  let taskkillFailed = false;
   if (process.platform === 'win32') {
-    await new Promise(resolve => {
-      const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-      killer.once('error', resolve);
-      killer.once('close', resolve);
-    });
+    const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    try {
+      await waitForClose(killer, 2000);
+    } catch {
+      taskkillFailed = true;
+      killer.kill('SIGKILL');
+      await waitForClose(killer, 1000).catch(() => undefined);
+    }
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
   } else {
     child.kill('SIGTERM');
   }
   await waitForClose(child, 3000);
+  assert.equal(taskkillFailed, false, 'taskkill failed or exceeded its cleanup deadline');
 }
 
 function canConnect(port) {
@@ -111,11 +150,16 @@ function canConnect(port) {
   });
 }
 
-function assertSafeDiagnostic(output, secret, port, setting) {
-  assert.ok(!output.includes(secret), `${setting} error exposed the test password`);
-  assert.ok(!output.includes(`postgresql://handoff:${secret}`), `${setting} error exposed the database URL`);
-  assert.ok(/PORT_IN_USE|EADDRINUSE|port.+in use/i.test(output), `${setting} conflict needs a useful diagnostic`);
-  assert.ok(output.includes(String(port)) || output.includes(setting), `${setting} conflict needs the affected setting or port`);
+function assertOnlyDiagnostic(output, secret, expected) {
+  assert.equal(output.overflow, false, 'development process exceeded the diagnostic capture limit');
+  assert.ok(!output.stdout.includes(secret) && !output.stderr.includes(secret), 'port conflict exposed the test password');
+  assert.ok(!output.stdout.includes('postgresql://') && !output.stderr.includes('postgresql://'), 'port conflict exposed a database URL');
+  const line = [expected, `${expected}\n`, `${expected}\r\n`];
+  assert.ok(
+    (output.stdout === '' && line.includes(output.stderr)) ||
+    (output.stderr === '' && line.includes(output.stdout)),
+    `development process must emit only the fixed diagnostic ${expected}`
+  );
 }
 
 test('dev:api reports an occupied API port, exits, and leaves the occupant alive', { timeout: 20_000 }, async () => {
@@ -129,14 +173,16 @@ test('dev:api reports an occupied API port, exits, and leaves the occupant alive
     const secret = randomBytes(18).toString('hex');
     await writeFile(envPath, envText(apiPort, webPort, dbPort, secret), { mode: 0o600 });
     running = start(apiLauncher, root, envPath);
-    assert.notEqual(await waitForClose(running.child, 15_000), 0);
+    assert.equal(await waitForClose(running.child, 15_000), 1);
     assert.equal(occupant.listening, true);
     assert.equal(await canConnect(apiPort), true, 'the API port occupant must survive');
-    assertSafeDiagnostic(running.output(), secret, apiPort, 'API_PORT');
+    assertOnlyDiagnostic(running.output(), secret, 'DEV_API_FAILED: PORT_IN_USE: API_PORT');
   } finally {
-    if (running) await stopCandidate(running.child);
-    await new Promise((resolve, reject) => occupant.close(error => error ? reject(error) : resolve()));
-    if (dir) await rm(dir, { recursive: true, force: true });
+    await cleanupIndependently([
+      ['API candidate', () => running ? stopCandidate(running.child) : Promise.resolve()],
+      ['occupying fixture', () => closeServer(occupant)],
+      ['temporary settings', () => dir ? withDeadline(rm(dir, { recursive: true, force: true }), 2000, 'temporary settings removal') : Promise.resolve()]
+    ]);
   }
 });
 
@@ -151,13 +197,15 @@ test('dev:web rejects an occupied configured port without moving or stopping the
     const secret = randomBytes(18).toString('hex');
     await writeFile(envPath, envText(apiPort, webPort, dbPort, secret), { mode: 0o600 });
     running = start(viteCli, webRoot, envPath);
-    assert.notEqual(await waitForClose(running.child, 8_000), 0);
+    assert.equal(await waitForClose(running.child, 8_000), 1);
     assert.equal(occupant.listening, true);
     assert.equal(await canConnect(webPort), true, 'the web port occupant must survive');
-    assertSafeDiagnostic(running.output(), secret, webPort, 'WEB_PORT');
+    assertOnlyDiagnostic(running.output(), secret, 'DEV_WEB_FAILED: PORT_IN_USE: WEB_PORT');
   } finally {
-    if (running) await stopCandidate(running.child);
-    await new Promise((resolve, reject) => occupant.close(error => error ? reject(error) : resolve()));
-    if (dir) await rm(dir, { recursive: true, force: true });
+    await cleanupIndependently([
+      ['web candidate', () => running ? stopCandidate(running.child) : Promise.resolve()],
+      ['occupying fixture', () => closeServer(occupant)],
+      ['temporary settings', () => dir ? withDeadline(rm(dir, { recursive: true, force: true }), 2000, 'temporary settings removal') : Promise.resolve()]
+    ]);
   }
 });
