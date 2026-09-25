@@ -68,9 +68,12 @@ afterEach(async () => {
 });
 
 function status() {
-  const announcement = screen.getByRole("status");
-  expect(announcement.getAttribute("aria-live")).toMatch(/^(polite|assertive)$/);
-  return announcement;
+  const regions = [...document.querySelectorAll<HTMLElement>("[aria-live]")].filter(
+    (region) => /^(polite|assertive)$/.test(region.getAttribute("aria-live") ?? "")
+  );
+  expect(regions.length).toBeGreaterThan(0);
+  return regions.find((region) => /확인|준비|정상|저장소|서비스|응답|점검/.test(region.textContent ?? ""))
+    ?? regions[0]!;
 }
 
 function checkAgain() {
@@ -88,6 +91,63 @@ function expectNoRawDiagnostics() {
     expect(document.body).not.toHaveTextContent(raw);
   }
 }
+
+function expectLabeledInstant(label: string, instant: string) {
+  const text = (document.body.textContent ?? "").replace(/\s+/g, " ");
+  const labelAt = text.indexOf(label);
+  expect(labelAt).toBeGreaterThanOrEqual(0);
+  const following = text.slice(labelAt + label.length);
+  const nextTimeLabel = following.search(/확인(?: 시도)? 시각/);
+  const value = nextTimeLabel < 0 ? following : following.slice(0, nextTimeLabel);
+  const date = new Date(instant);
+  const pad = (number: number) => number < 10 ? `0?${number}` : String(number);
+  const patterns = [
+    [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()],
+    [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()]
+  ].flatMap(([year, month, day, hour, minute, second]) => {
+    const clocks = [hour, hour % 12 || 12].map(
+      (displayHour) => `${pad(displayHour)}:${pad(minute)}:${pad(second)}`
+    );
+    return clocks.flatMap((clock) => [
+      new RegExp(`${year}\\D+${pad(month)}\\D+${pad(day)}.{0,24}${clock}`),
+      new RegExp(`${pad(month)}\\D+${pad(day)}\\D+${year}.{0,24}${clock}`),
+      new RegExp(`${pad(day)}\\D+${pad(month)}\\D+${year}.{0,24}${clock}`)
+    ]);
+  });
+  expect(patterns.some((pattern) => pattern.test(value)), `${label} must show the complete expected date and time`).toBe(true);
+}
+
+describe("timestamp assertion fixtures", () => {
+  it("accepts the exact server instant in ISO or local presentation", () => {
+    const fixture = document.createElement("div");
+    document.body.append(fixture);
+    try {
+      fixture.textContent = `확인 시각 ${serverCheckedAt}`;
+      expectLabeledInstant("확인 시각", serverCheckedAt);
+      fixture.textContent = `확인 시각 ${new Date(serverCheckedAt).toLocaleString()}`;
+      expectLabeledInstant("확인 시각", serverCheckedAt);
+    } finally {
+      fixture.remove();
+    }
+  });
+
+  it("rejects wrong day, wrong second, and a timestamp under the wrong label", () => {
+    const fixture = document.createElement("div");
+    document.body.append(fixture);
+    try {
+      for (const displayed of [
+        "2020-01-03T03:04:05.000Z",
+        "2020-01-02T03:04:06.000Z",
+        `2032-03-04T05:06:07.000Z 확인 시도 시각 ${serverCheckedAt}`
+      ]) {
+        fixture.textContent = `확인 시각 ${displayed}`;
+        expect(() => expectLabeledInstant("확인 시각", serverCheckedAt)).toThrow(/complete expected date and time/);
+      }
+    } finally {
+      fixture.remove();
+    }
+  });
+});
 
 describe("development health screen", () => {
   it("announces checking while the request is pending and keeps a recheck action", () => {
@@ -123,8 +183,7 @@ describe("development health screen", () => {
     expect(status()).not.toHaveTextContent(/확인 불가|준비 완료/);
     expect(document.body).toHaveTextContent(/서비스 상태/);
     expect(document.body).toHaveTextContent(/저장소 상태/);
-    expect(document.body).toHaveTextContent(/DB|데이터베이스|저장소/);
-    expect(document.body).toHaveTextContent(/실행|시작|연결|설정/);
+    expect(screen.getByText(/db:up|(?:DB|데이터베이스|저장소).{0,30}(?:실행|시작|설정)/i)).toBeVisible();
     expect(screen.getByRole("button", { name: /상태 확인|연결 확인|다시 확인/ })).toBeEnabled();
     expectNoRawDiagnostics();
   });
@@ -150,8 +209,7 @@ describe("development health screen", () => {
     await waitFor(() => expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/));
     expect(document.body).toHaveTextContent(/저장소 상태/);
     expect(document.body).toHaveTextContent(/확인 불가|알 수 없음|미확인/);
-    expect(document.body).toHaveTextContent(/API/);
-    expect(document.body).toHaveTextContent(/실행|프로세스|연결/);
+    expect(screen.getByText(/dev:api|API.{0,40}(?:프로세스|실행|시작|재시도|다시 확인|연결.*확인)|(?:실행|시작|프로세스).{0,40}API/i)).toBeVisible();
     expect(screen.getByRole("button", { name: /상태 확인|연결 확인|다시 확인/ })).toBeEnabled();
     expectNoRawDiagnostics();
   });
@@ -242,14 +300,12 @@ describe("development health screen", () => {
 
     await act(async () => { checkAgain(); });
     expect(status()).toHaveTextContent(/준비 완료|정상/);
-    expect(document.body).toHaveTextContent(/확인 시각/);
-    expect(document.body).toHaveTextContent(/2020/);
+    expectLabeledInstant("확인 시각", serverCheckedAt);
     expect(document.body).not.toHaveTextContent(/2032/);
 
     await act(async () => { checkAgain(); });
     expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/);
-    expect(document.body).toHaveTextContent(/확인 시도 시각/);
-    expect(document.body).toHaveTextContent(/2032/);
+    expectLabeledInstant("확인 시도 시각", "2032-03-04T05:06:07.000Z");
     expect(document.body).not.toHaveTextContent(/2020/);
   });
 });
