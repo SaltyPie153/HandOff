@@ -72,7 +72,7 @@
 ### Tests for User Story 2
 
 - [X] T018 [P] [US2] apps/api/tests/health.contract.test.ts에 GET /api/health/ready의 200/503·no-store·UTC checkedAt·필드/enum·빈 테이블 정상·스키마 누락을 검증하는 실패 테스트를 작성한다. status “ready | degraded”, service “ok”, database “ok | unavailable | schema_missing”, code “OK | DATABASE_UNAVAILABLE | SCHEMA_NOT_READY”를 그대로 검사한다. FR-004/006.
-- [ ] T019 [P] [US2] apps/web/tests/health-state.test.tsx에 checking/ready/degraded/unavailable, 503과 무응답 구별, 비JSON·필드 오류, 10초 timeout, 역순 응답 무시, 서버 확인 시각과 클라이언트 시도 시각 구분을 검증하는 실패 테스트를 작성한다. FR-005.
+- [X] T019 [P] [US2] apps/web/tests/health-state.test.tsx에 checking/ready/degraded/unavailable, 503과 무응답 구별, 비JSON·필드 오류, 10초 timeout, 역순 응답 무시, 서버 확인 시각과 클라이언트 시도 시각 구분을 검증하는 실패 테스트를 작성한다. FR-005.
 - [ ] T020 [US2] apps/api/src/health/health.service.ts에 실제 DB 연결과 BootstrapProbe 읽기, 스키마 누락 판정, 2초 연결·2초 쿼리·5초 서버 진단 예산과 연결 반환을 구현한다. 원시 SQL 오류를 고정 코드로 변환하고 Promise.race만으로 DB 취소를 대신하지 않는다.
 - [ ] T021 [US2] apps/api/src/health/health.controller.ts, apps/api/src/health/health.module.ts, apps/api/src/app.module.ts에 읽기 전용 엔드포인트를 연결한다. 계약의 필드·상태만 반환하며 cache/행 값/행 개수/SQL/접속정보를 노출하지 않는다. T018을 통과시킨다.
 - [ ] T022 [US2] apps/web/src/health/useHealth.ts와 apps/web/src/health/HealthPanel.tsx에 AbortController·증가 requestId·최신 결과만 반영·10초 제한을 구현한다. MUI 상태 표시/재확인/조치 안내, 텍스트와 aria-live를 제공하고 App.tsx에 연결한다. T019를 통과시킨다.
