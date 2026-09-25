@@ -97,7 +97,7 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
   let schema: pg.Client | undefined;
   let clientEnded = false;
   let dbStopped = false;
-  let tableRenamed = false;
+  let schemaMutationAttempted = false;
   let failure: unknown;
   try {
     await client.connect();
@@ -107,8 +107,8 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
 
     await client.end();
     clientEnded = true;
-    await compose(project, 'stop');
     dbStopped = true;
+    await compose(project, 'stop');
     await readHealth(health.url, dbDown);
     await compose(project, 'start');
     dbStopped = false;
@@ -116,11 +116,10 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
 
     schema = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
     await schema.connect();
+    schemaMutationAttempted = true;
     await schema.query('ALTER TABLE bootstrap_probes RENAME TO bootstrap_probes_health_test_hidden');
-    tableRenamed = true;
     await readHealth(health.url, schemaMissing);
     await schema.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
-    tableRenamed = false;
     await readHealth(health.url, ready);
   } catch (error) { failure = error; }
   finally {
@@ -129,12 +128,19 @@ integrationTest('real test PostgreSQL reports migrated empty table, outage, reco
       try { await compose(project, 'start'); }
       catch { cleanupErrors.push('DB_RESTART'); }
     }
-    if (tableRenamed) {
+    if (schemaMutationAttempted) {
       const restorer = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
       try {
         await restorer.connect();
-        await restorer.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
-        tableRenamed = false;
+        const state = await restorer.query<{ original: string | null; hidden: string | null }>(
+          "SELECT to_regclass('public.bootstrap_probes') AS original, to_regclass('public.bootstrap_probes_health_test_hidden') AS hidden"
+        );
+        const { original, hidden } = state.rows[0];
+        if (original === null && hidden !== null) {
+          await restorer.query('ALTER TABLE bootstrap_probes_health_test_hidden RENAME TO bootstrap_probes');
+        } else if (original === null || hidden !== null) {
+          throw new Error('SCHEMA_STATE_AMBIGUOUS');
+        }
       } catch { cleanupErrors.push('SCHEMA_RESTORE'); }
       try { await restorer.end(); } catch { cleanupErrors.push('RESTORER_CLOSE'); }
     }
