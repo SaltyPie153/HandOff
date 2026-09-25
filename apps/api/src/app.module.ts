@@ -1,5 +1,5 @@
 import { Module, type DynamicModule } from '@nestjs/common';
-import { PrismaService } from './database/prisma.service.js';
+import { HealthModule } from './health/health.module.js';
 
 export type ApiConfig = {
   nodeEnv: string;
@@ -18,11 +18,8 @@ export class AppModule {
   static register(config: ApiConfig): DynamicModule {
     return {
       module: AppModule,
-      providers: [{
-        provide: PrismaService,
-        useFactory: () => new PrismaService({ databaseUrl: config.databaseUrl })
-      }],
-      exports: [PrismaService]
+      imports: [HealthModule.register({ databaseUrl: config.databaseUrl })],
+      exports: [HealthModule]
     };
   }
 }
