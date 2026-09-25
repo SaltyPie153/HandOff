@@ -72,8 +72,8 @@ test('real PostgreSQL outage and recovery update HTTP and browser state', async 
     await check(page, '준비 완료', '정상');
     await expect(page.getByText(/^확인 시각 \d{4}-\d{2}-\d{2}T/)).toBeVisible();
 
-    await compose(project, 'stop');
     dbStopped = true;
+    await compose(project, 'stop');
     const unavailable = await request.get(healthPath);
     await assertHealth(unavailable, 503, 'unavailable');
     await check(page, '저장소 점검 필요', '연결 불가');
@@ -101,26 +101,40 @@ test('real PostgreSQL outage and recovery update HTTP and browser state', async 
 test('missing real schema is degraded, guides migration, and recovers after restoring the table', async ({ page, request }) => {
   isolatedProject();
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 2_000 });
-  let renamed = false;
+  let schemaMutationAttempted = false;
   let failure: unknown;
   try {
     await client.connect();
     await page.goto('/');
+    schemaMutationAttempted = true;
     await client.query('ALTER TABLE bootstrap_probes RENAME TO bootstrap_probes_health_e2e_hidden');
-    renamed = true;
     await assertHealth(await request.get(healthPath), 503, 'schema_missing');
     await check(page, '저장소 점검 필요', '스키마 준비 필요');
     await expect(page.getByText(/npm run db:migrate/)).toBeVisible();
     await client.query('ALTER TABLE bootstrap_probes_health_e2e_hidden RENAME TO bootstrap_probes');
-    renamed = false;
     await assertHealth(await request.get(healthPath), 200, 'ok');
     await check(page, '준비 완료', '정상');
   } catch (error) { failure = error; }
   finally {
-    if (renamed) {
-      try { await client.query('ALTER TABLE bootstrap_probes_health_e2e_hidden RENAME TO bootstrap_probes'); }
-      catch (cleanupError) {
+    if (schemaMutationAttempted) {
+      const restorer = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 2_000 });
+      try {
+        await restorer.connect();
+        const state = await restorer.query<{ original: string | null; hidden: string | null }>(
+          "SELECT to_regclass('public.bootstrap_probes') AS original, to_regclass('public.bootstrap_probes_health_e2e_hidden') AS hidden"
+        );
+        const { original, hidden } = state.rows[0];
+        if (original === null && hidden !== null) {
+          await restorer.query('ALTER TABLE bootstrap_probes_health_e2e_hidden RENAME TO bootstrap_probes');
+        } else if (original === null || hidden !== null) {
+          throw new Error('SCHEMA_STATE_AMBIGUOUS');
+        }
+      } catch (cleanupError) {
         failure = failure ? new AggregateError([failure, cleanupError], 'schema cleanup failed') : cleanupError;
+      }
+      try { await restorer.end(); }
+      catch (cleanupError) {
+        failure = failure ? new AggregateError([failure, cleanupError], 'restorer connection cleanup failed') : cleanupError;
       }
     }
     try { await client.end(); }
