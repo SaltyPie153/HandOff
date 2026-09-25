@@ -51,7 +51,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] apps/web/tests/start-screen.test.tsx에 HandOff·개발 환경·상태 확인 진입점, 키보드 조작, 업무 메뉴 부재를 검증하는 실패 테스트를 작성한다. FR-002/010.
+- [X] T011 [P] [US1] apps/web/tests/start-screen.test.tsx에 HandOff·개발 환경·상태 확인 진입점, 키보드 조작, 업무 메뉴 부재를 검증하는 실패 테스트를 작성한다. FR-002/010.
 - [ ] T012 [P] [US1] apps/api/tests/startup.test.ts와 scripts/tests/dev-process.test.mjs에 설정 누락·production 거부·API/웹 포트 충돌 시 실패, 타 프로세스 보존, DB 중단 상태에서도 API 프로세스 시작을 검증하는 실패 테스트를 작성한다. FR-003/006/010.
 
 ### Implementation for User Story 1
