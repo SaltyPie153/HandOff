@@ -20,9 +20,9 @@ function failure(label, reason) {
   return new Error(`${label}_FAILED: ${reason}`);
 }
 
-function launch(command, args, { cwd = root, env = process.env } = {}) {
+function launch(command, args, { cwd = root, env = process.env, stdio = 'ignore' } = {}) {
   const child = spawn(command, args, {
-    cwd, env, windowsHide: true, stdio: 'ignore', detached: process.platform !== 'win32'
+    cwd, env, windowsHide: true, stdio, detached: process.platform !== 'win32'
   });
   const done = new Promise((resolve, reject) => {
     child.once('error', () => reject(new Error('SPAWN_ERROR')));
@@ -67,9 +67,9 @@ async function stopChild(running) {
 }
 
 export async function runCommand(command, args, {
-  label, timeoutMs = 60_000, cwd = root, env = process.env, signal, onSpawn
+  label, timeoutMs = 60_000, cwd = root, env = process.env, signal, onSpawn, stdio
 }) {
-  const running = launch(command, args, { cwd, env });
+  const running = launch(command, args, { cwd, env, stdio });
   let timer;
   let abortHandler;
   try {
@@ -285,7 +285,8 @@ async function main() {
     console.log(`INTEGRATION_TESTS: ${files.map(file => file.slice(root.length)).join(', ')}`);
     await runCommand(process.execPath, ['--test', ...files], {
       label: 'INTEGRATION_TEST', timeoutMs: 120_000,
-      env: { ...environment.env, HANDOFF_TEST_PROJECT: environment.project }, signal: controller.signal
+      env: { ...environment.env, HANDOFF_TEST_PROJECT: environment.project }, signal: controller.signal,
+      stdio: process.env.HANDOFF_TEST_VERBOSE === '1' ? 'inherit' : 'ignore'
     });
   } catch (caught) {
     error = caught;
