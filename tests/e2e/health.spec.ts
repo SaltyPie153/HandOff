@@ -1,6 +1,5 @@
 import { test, expect, type Page, type APIResponse } from '@playwright/test';
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -139,30 +138,16 @@ async function waitForApi(responseExpected: boolean, timeoutMs = 30_000) {
   }, { timeout: timeoutMs }).toBe(responseExpected);
 }
 
-async function stopChild(child: ChildProcess) {
-  if (child.pid && child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-  await new Promise<void>((resolve, reject) => {
-    if (child.exitCode !== null || child.signalCode !== null) return resolve();
-    const timer = setTimeout(() => reject(new Error('API_TEST_CLEANUP_TIMEOUT')), 5_000);
-    child.once('close', () => { clearTimeout(timer); resolve(); });
+async function controlApi(action: 'stop' | 'start') {
+  const controlUrl = new URL(process.env.HANDOFF_TEST_API_CONTROL_URL ?? '');
+  const token = process.env.HANDOFF_TEST_API_CONTROL_TOKEN ?? '';
+  expect(controlUrl.protocol).toBe('http:');
+  expect(controlUrl.hostname).toBe('127.0.0.1');
+  expect(token).toMatch(/^[0-9a-f]{48}$/);
+  const response = await fetch(new URL(`/${action}`, controlUrl), {
+    method: 'POST', headers: { 'x-test-control-token': token }, signal: AbortSignal.timeout(35_000)
   });
-}
-
-async function startRegisteredApi(): Promise<ChildProcess> {
-  const pidFile = process.env.HANDOFF_TEST_API_REPLACEMENT_PID_FILE ?? '';
-  expect(pidFile).toMatch(/[\\/]work[\\/]test-run-[^\\/]+[\\/]api-replacement\.pid$/);
-  const child = spawn(process.execPath, ['apps/api/dist/src/main.js'], {
-    cwd: root, env: process.env, windowsHide: true, stdio: 'ignore'
-  });
-  try {
-    expect(Number.isSafeInteger(child.pid) && (child.pid ?? 0) > 0).toBe(true);
-    await writeFile(pidFile, `${child.pid}\n`, { flag: 'wx' });
-  } catch (error) {
-    try { await stopChild(child); }
-    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'API registration cleanup failed'); }
-    throw error;
-  }
-  return child;
+  expect(response.status, `fixture API ${action} failed`).toBe(204);
 }
 
 async function stopSlowApi(server: Server) {
@@ -174,17 +159,14 @@ async function stopSlowApi(server: Server) {
 
 test('stopped and slow real API connections become unavailable before a fresh API restores ready', async ({ page, request }) => {
   isolatedProject();
-  const apiPid = Number(process.env.HANDOFF_TEST_API_PID);
-  expect(Number.isSafeInteger(apiPid) && apiPid > 0).toBe(true);
-  let replacement: ChildProcess | undefined;
   let slowApi: Server | undefined;
-  let originalStopped = false;
+  let stopAttempted = false;
   let failure: unknown;
   try {
     await waitForApi(true);
     await page.goto('/');
-    process.kill(apiPid, 'SIGTERM');
-    originalStopped = true;
+    stopAttempted = true;
+    await controlApi('stop');
     await waitForApi(false);
     await check(page, '확인 불가', '확인 불가');
     await expect(page.getByText(/API 프로세스를 확인하세요/)).toBeVisible();
@@ -230,7 +212,7 @@ test('stopped and slow real API connections become unavailable before a fresh AP
     await stopSlowApi(slowApi);
     slowApi = undefined;
 
-    replacement = await startRegisteredApi();
+    await controlApi('start');
     await waitForApi(true);
     await assertHealth(await request.get(healthPath), 200, 'ok');
     await check(page, '준비 완료', '정상');
@@ -240,12 +222,25 @@ test('stopped and slow real API connections become unavailable before a fresh AP
       try { await stopSlowApi(slowApi); }
       catch (cleanupError) { failure = failure ? new AggregateError([failure, cleanupError], 'slow API cleanup failed') : cleanupError; }
     }
-    if (originalStopped && !replacement) {
-      try {
-        replacement = await startRegisteredApi();
-        await waitForApi(true);
-      } catch (cleanupError) {
-        failure = failure ? new AggregateError([failure, cleanupError], 'API recovery cleanup failed') : cleanupError;
+    if (stopAttempted) {
+      try { await waitForApi(true, 2_000); }
+      catch {
+        let recoveryError: unknown;
+        try {
+          await controlApi('start');
+          await waitForApi(true);
+        } catch (firstStartError) {
+          try {
+            await controlApi('stop');
+            await controlApi('start');
+            await waitForApi(true);
+          } catch (retryError) {
+            recoveryError = new AggregateError([firstStartError, retryError], 'fixture API restart failed');
+          }
+        }
+        if (recoveryError) {
+          failure = failure ? new AggregateError([failure, recoveryError], 'API recovery cleanup failed') : recoveryError;
+        }
       }
     }
   }
