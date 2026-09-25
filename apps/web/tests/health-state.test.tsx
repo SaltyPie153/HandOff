@@ -67,13 +67,20 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-function status() {
+function liveRegions() {
   const regions = [...document.querySelectorAll<HTMLElement>("[aria-live]")].filter(
     (region) => /^(polite|assertive)$/.test(region.getAttribute("aria-live") ?? "")
   );
   expect(regions.length).toBeGreaterThan(0);
-  return regions.find((region) => /확인|준비|정상|저장소|서비스|응답|점검/.test(region.textContent ?? ""))
-    ?? regions[0]!;
+  return regions;
+}
+
+function expectLiveStatus(expected: RegExp) {
+  expect(liveRegions().some((region) => expected.test(region.textContent ?? ""))).toBe(true);
+}
+
+function expectNoLiveStatus(unexpected: RegExp) {
+  expect(liveRegions().some((region) => unexpected.test(region.textContent ?? ""))).toBe(false);
 }
 
 function checkAgain() {
@@ -92,6 +99,9 @@ function expectNoRawDiagnostics() {
   }
 }
 
+const dbAction = /db:up|(?:DB|데이터베이스|저장소).{0,40}(?:실행|시작|설정|확인).{0,25}(?:하세요|해\s*주세요|하십시오)/i;
+const apiAction = /dev:api|API.{0,50}(?:프로세스|서버|실행|시작|연결|재시도|다시 확인).{0,25}(?:하세요|해\s*주세요|하십시오)/i;
+
 function expectLabeledInstant(label: string, instant: string) {
   const text = (document.body.textContent ?? "").replace(/\s+/g, " ");
   const labelAt = text.indexOf(label);
@@ -100,18 +110,24 @@ function expectLabeledInstant(label: string, instant: string) {
   const nextTimeLabel = following.search(/확인(?: 시도)? 시각/);
   const value = nextTimeLabel < 0 ? following : following.slice(0, nextTimeLabel);
   const date = new Date(instant);
+  const iso = value.match(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/);
+  if (iso) {
+    expect(new Date(iso[0]).getTime(), `${label} must preserve the server instant`).toBe(date.getTime());
+    return;
+  }
   const pad = (number: number) => number < 10 ? `0?${number}` : String(number);
+  const bounded = (number: number) => `(?<!\\d)${pad(number)}(?!\\d)`;
   const patterns = [
     [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()],
     [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()]
   ].flatMap(([year, month, day, hour, minute, second]) => {
     const clocks = [hour, hour % 12 || 12].map(
-      (displayHour) => `${pad(displayHour)}:${pad(minute)}:${pad(second)}`
+      (displayHour) => `${bounded(displayHour)}:${bounded(minute)}:${bounded(second)}`
     );
     return clocks.flatMap((clock) => [
-      new RegExp(`${year}\\D+${pad(month)}\\D+${pad(day)}.{0,24}${clock}`),
-      new RegExp(`${pad(month)}\\D+${pad(day)}\\D+${year}.{0,24}${clock}`),
-      new RegExp(`${pad(day)}\\D+${pad(month)}\\D+${year}.{0,24}${clock}`)
+      new RegExp(`${bounded(year)}\\D+${bounded(month)}\\D+${bounded(day)}.{0,24}${clock}`),
+      new RegExp(`${bounded(month)}\\D+${bounded(day)}\\D+${bounded(year)}.{0,24}${clock}`),
+      new RegExp(`${bounded(day)}\\D+${bounded(month)}\\D+${bounded(year)}.{0,24}${clock}`)
     ]);
   });
   expect(patterns.some((pattern) => pattern.test(value)), `${label} must show the complete expected date and time`).toBe(true);
@@ -138,14 +154,42 @@ describe("timestamp assertion fixtures", () => {
       for (const displayed of [
         "2020-01-03T03:04:05.000Z",
         "2020-01-02T03:04:06.000Z",
+        "2020-01-02T13:04:05.000Z",
+        "2020. 1. 2. 13:04:05",
         `2032-03-04T05:06:07.000Z 확인 시도 시각 ${serverCheckedAt}`
       ]) {
         fixture.textContent = `확인 시각 ${displayed}`;
-        expect(() => expectLabeledInstant("확인 시각", serverCheckedAt)).toThrow(/complete expected date and time/);
+        expect(() => expectLabeledInstant("확인 시각", serverCheckedAt)).toThrow(/must preserve|complete expected date and time/);
       }
     } finally {
       fixture.remove();
     }
+  });
+});
+
+describe("announcement and guidance assertion fixtures", () => {
+  it("finds a dynamic announcement after a static aria-live region", () => {
+    const staticRegion = document.createElement("div");
+    staticRegion.setAttribute("aria-live", "polite");
+    staticRegion.textContent = "서비스 상태";
+    const dynamicRegion = document.createElement("div");
+    dynamicRegion.setAttribute("aria-live", "assertive");
+    dynamicRegion.textContent = "확인 중";
+    document.body.append(staticRegion, dynamicRegion);
+    try {
+      expectLiveStatus(/확인 중/);
+      expectNoLiveStatus(/준비 완료/);
+    } finally {
+      staticRegion.remove();
+      dynamicRegion.remove();
+    }
+  });
+
+  it("requires imperative or command guidance rather than descriptive status text", () => {
+    expect(dbAction.test("저장소 시작 실패")).toBe(false);
+    expect(apiAction.test("API 연결 상태를 확인할 수 있습니다")).toBe(false);
+    expect(dbAction.test("DB를 실행하세요")).toBe(true);
+    expect(apiAction.test("API 프로세스를 확인하세요")).toBe(true);
   });
 });
 
@@ -157,8 +201,8 @@ describe("development health screen", () => {
 
     checkAgain();
 
-    expect(status()).toHaveTextContent(/확인 중|점검 중|검사 중/);
-    expect(status()).not.toHaveTextContent(/준비 완료|확인 불가/);
+    expectLiveStatus(/확인 중|점검 중|검사 중/);
+    expectNoLiveStatus(/준비 완료|확인 불가/);
     expect(screen.getByRole("button", { name: /상태 확인|연결 확인|다시 확인/ })).toBeEnabled();
   });
 
@@ -167,7 +211,7 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/준비 완료|정상/));
+    await waitFor(() => expectLiveStatus(/준비 완료|정상/));
     expect(document.body).toHaveTextContent(/서비스 상태/);
     expect(document.body).toHaveTextContent(/저장소 상태/);
     expect(document.body).toHaveTextContent(/저장소.*(정상|연결됨|사용 가능)/);
@@ -179,11 +223,11 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i));
-    expect(status()).not.toHaveTextContent(/확인 불가|준비 완료/);
+    await waitFor(() => expectLiveStatus(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i));
+    expectNoLiveStatus(/확인 불가|준비 완료/);
     expect(document.body).toHaveTextContent(/서비스 상태/);
     expect(document.body).toHaveTextContent(/저장소 상태/);
-    expect(screen.getByText(/db:up|(?:DB|데이터베이스|저장소).{0,30}(?:실행|시작|설정)/i)).toBeVisible();
+    expect(screen.getByText(dbAction)).toBeVisible();
     expect(screen.getByRole("button", { name: /상태 확인|연결 확인|다시 확인/ })).toBeEnabled();
     expectNoRawDiagnostics();
   });
@@ -193,7 +237,7 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i));
+    await waitFor(() => expectLiveStatus(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i));
     expect(document.body).toHaveTextContent(/db:migrate/);
     expect(document.body).not.toHaveTextContent(/준비 완료/);
   });
@@ -206,10 +250,10 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/));
+    await waitFor(() => expectLiveStatus(/확인 불가|연결 실패|응답 없음/));
     expect(document.body).toHaveTextContent(/저장소 상태/);
     expect(document.body).toHaveTextContent(/확인 불가|알 수 없음|미확인/);
-    expect(screen.getByText(/dev:api|API.{0,40}(?:프로세스|실행|시작|재시도|다시 확인|연결.*확인)|(?:실행|시작|프로세스).{0,40}API/i)).toBeVisible();
+    expect(screen.getByText(apiAction)).toBeVisible();
     expect(screen.getByRole("button", { name: /상태 확인|연결 확인|다시 확인/ })).toBeEnabled();
     expectNoRawDiagnostics();
   });
@@ -223,8 +267,8 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/));
-    expect(status()).not.toHaveTextContent(/준비 완료/);
+    await waitFor(() => expectLiveStatus(/확인 불가|연결 실패|응답 없음/));
+    expectNoLiveStatus(/준비 완료/);
     expectNoRawDiagnostics();
   });
 
@@ -238,8 +282,8 @@ describe("development health screen", () => {
     render(<App />);
     checkAgain();
 
-    await waitFor(() => expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/));
-    expect(status()).not.toHaveTextContent(/준비 완료/);
+    await waitFor(() => expectLiveStatus(/확인 불가|연결 실패|응답 없음/));
+    expectNoLiveStatus(/준비 완료/);
     expectNoRawDiagnostics();
   });
 
@@ -258,12 +302,12 @@ describe("development health screen", () => {
     expect(requestSignal).toBeInstanceOf(AbortSignal);
     await act(async () => { vi.advanceTimersByTime(9_999); });
     expect(requestSignal?.aborted).toBe(false);
-    expect(status()).toHaveTextContent(/확인 중|점검 중|검사 중/);
+    expectLiveStatus(/확인 중|점검 중|검사 중/);
 
     await act(async () => { vi.advanceTimersByTime(1); });
     expect(requestSignal?.aborted).toBe(true);
-    expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/);
-    expect(status()).not.toHaveTextContent(/준비 완료/);
+    expectLiveStatus(/확인 불가|연결 실패|응답 없음/);
+    expectNoLiveStatus(/준비 완료/);
   });
 
   it("keeps the latest result when an older request resolves afterward", async () => {
@@ -283,10 +327,10 @@ describe("development health screen", () => {
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => { second.resolve(jsonResponse(databaseDown, 503)); });
-    expect(status()).toHaveTextContent(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i);
+    expectLiveStatus(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i);
     await act(async () => { first.resolve(jsonResponse(ready)); });
-    expect(status()).toHaveTextContent(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i);
-    expect(status()).not.toHaveTextContent(/준비 완료/);
+    expectLiveStatus(/저장소.*(실패|불가)|일부.*(실패|오류)|점검 필요|degraded/i);
+    expectNoLiveStatus(/준비 완료/);
   });
 
   it("keeps server checkedAt distinct from the client time of an unavailable attempt", async () => {
@@ -299,12 +343,12 @@ describe("development health screen", () => {
     render(<App />);
 
     await act(async () => { checkAgain(); });
-    expect(status()).toHaveTextContent(/준비 완료|정상/);
+    expectLiveStatus(/준비 완료|정상/);
     expectLabeledInstant("확인 시각", serverCheckedAt);
     expect(document.body).not.toHaveTextContent(/2032/);
 
     await act(async () => { checkAgain(); });
-    expect(status()).toHaveTextContent(/확인 불가|연결 실패|응답 없음/);
+    expectLiveStatus(/확인 불가|연결 실패|응답 없음/);
     expectLabeledInstant("확인 시도 시각", "2032-03-04T05:06:07.000Z");
     expect(document.body).not.toHaveTextContent(/2020/);
   });
