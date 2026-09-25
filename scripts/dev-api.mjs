@@ -25,13 +25,13 @@ async function checkApiPort(port) {
   }
 }
 
-function start(args) {
+function start(args, stdio = ['ignore', 'pipe', 'inherit']) {
   return spawn(process.execPath, args, {
     cwd: apiRoot,
     env: process.env,
     windowsHide: true,
     detached: process.platform !== 'win32',
-    stdio: ['ignore', 'pipe', 'inherit']
+    stdio
   });
 }
 
@@ -111,12 +111,20 @@ async function run() {
           await stop(runtime, runtimeDone);
         }
         if (summary[1] !== '0' || stopping) return;
-        runtime = start([entryPath]);
-        runtime.stdout.pipe(process.stdout);
+        runtime = start([entryPath], ['ignore', 'ignore', 'pipe']);
+        let runtimeError = '';
+        runtime.stderr.on('data', chunk => {
+          runtimeError = (runtimeError + chunk.toString()).slice(-8_192);
+        });
         runtimeDone = closed(runtime, 'node');
         const current = runtime;
         runtimeDone.then(result => {
-          if (!stopping && !plannedStops.has(current)) finish(result);
+          if (!stopping && !plannedStops.has(current)) {
+            finish({
+              ...result,
+              portInUse: runtimeError.trim() === 'API_START_FAILED: PORT_IN_USE: API_PORT'
+            });
+          }
         });
       }).catch(() => finish({ name: 'launcher', code: 1 }));
     }
@@ -130,6 +138,10 @@ async function run() {
   await restart;
   await Promise.all([stop(runtime, runtimeDone), stop(compiler, compilerDone)]);
   if (result.name === 'signal') return 0;
+  if (result.portInUse) {
+    process.stderr.write('DEV_API_FAILED: PORT_IN_USE: API_PORT\n');
+    return 1;
+  }
   process.stderr.write('DEV_API_FAILED: CHILD_FAILED: ' + result.name.toUpperCase() + '\n');
   return result.code || 1;
 }
