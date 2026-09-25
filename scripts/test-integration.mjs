@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -12,6 +12,7 @@ const prismaCli = join(root, 'node_modules', 'prisma', 'build', 'index.js');
 const tscCli = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const viteCli = join(root, 'apps', 'web', 'node_modules', 'vite', 'bin', 'vite.js');
 const apiRoot = join(root, 'apps', 'api');
+const apiDist = join(apiRoot, 'dist');
 const builtTests = join(apiRoot, 'dist', 'tests');
 const ports = [['DB_PORT', 5433], ['API_PORT', 3001], ['WEB_PORT', 5174]];
 
@@ -66,12 +67,13 @@ async function stopChild(running) {
 }
 
 export async function runCommand(command, args, {
-  label, timeoutMs = 60_000, cwd = root, env = process.env, signal
+  label, timeoutMs = 60_000, cwd = root, env = process.env, signal, onSpawn
 }) {
   const running = launch(command, args, { cwd, env });
   let timer;
   let abortHandler;
   try {
+    if (running.child.pid) onSpawn?.(running.child.pid);
     const deadline = new Promise((_, reject) => {
       timer = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
     });
@@ -134,6 +136,58 @@ export async function discoverIntegrationTests(dir = builtTests) {
     .sort().map(name => join(dir, name));
 }
 
+export async function cleanApiBuild(target = apiDist, allowedRoot = apiRoot) {
+  const resolvedRoot = resolve(allowedRoot);
+  const resolvedTarget = resolve(target);
+  if (basename(resolvedTarget) !== 'dist' || dirname(resolvedTarget) !== resolvedRoot ||
+      await realpath(dirname(resolvedTarget)) !== await realpath(resolvedRoot)) {
+    throw new Error('UNSAFE_BUILD_DIRECTORY');
+  }
+  let entry;
+  try { entry = await lstat(resolvedTarget); }
+  catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('UNSAFE_BUILD_DIRECTORY');
+  await rm(resolvedTarget, { recursive: true, force: true });
+}
+
+async function downFoundationProject(project) {
+  await runCommand('docker', ['compose', '--project-name', project, '-f', composeFile, 'down', '--volumes'], {
+    label: 'FOUNDATION_DOWN', timeoutMs: 45_000,
+    env: { ...process.env, POSTGRES_PASSWORD: 'cleanup-only' }
+  });
+}
+
+export async function runFoundationDatabaseTest({
+  testCommand = process.execPath,
+  testArgs = [join(root, 'scripts', 'tests', 'database-setup.test.mjs')],
+  downProject = downFoundationProject,
+  signal
+} = {}) {
+  let project;
+  let error;
+  try {
+    // Direct execution keeps the node:test file in this child PID.
+    await runCommand(testCommand, testArgs, {
+      label: 'DATABASE_SETUP_TEST', timeoutMs: 150_000, signal,
+      onSpawn: pid => { project = `handoff-foundation-${pid}`; }
+    });
+  } catch (caught) {
+    error = caught;
+  } finally {
+    if (project) {
+      try { await downProject(project); }
+      catch {
+        const cleanup = new Error('CLEANUP_FAILED: FOUNDATION_DATABASE');
+        error = error ? new Error(`${error.message}; ${cleanup.message}`) : cleanup;
+      }
+    }
+  }
+  if (error) throw error;
+}
+
 function testSettings(password) {
   const databaseUrl = `postgresql://handoff:${password}@${host}:5433/handoff_test`;
   const values = {
@@ -193,6 +247,7 @@ export async function createTestEnvironment({ withServices = false, signal } = {
     await runCommand(process.execPath, [prismaCli, 'migrate', 'deploy', '--config', 'apps/api/prisma.config.ts'], {
       label: 'DB_MIGRATE', timeoutMs: 60_000, env, signal
     });
+    await cleanApiBuild();
     await runCommand(process.execPath, [tscCli, '-p', join(apiRoot, 'tsconfig.json')], {
       label: 'API_BUILD', timeoutMs: 60_000, env, signal
     });
@@ -222,9 +277,7 @@ async function main() {
   try {
     await requireFreePorts(ports);
     console.log('INTEGRATION_TESTS: scripts/tests/database-setup.test.mjs');
-    await runCommand(process.execPath, ['--test', join(root, 'scripts', 'tests', 'database-setup.test.mjs')], {
-      label: 'DATABASE_SETUP_TEST', timeoutMs: 150_000, signal: controller.signal
-    });
+    await runFoundationDatabaseTest({ signal: controller.signal });
     environment = await createTestEnvironment({ signal: controller.signal });
     const files = await discoverIntegrationTests();
     console.log(`INTEGRATION_TESTS: ${files.map(file => file.slice(root.length)).join(', ')}`);

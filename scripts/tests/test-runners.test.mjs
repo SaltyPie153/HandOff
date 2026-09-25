@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   cleanupSteps,
+  cleanApiBuild,
   discoverIntegrationTests,
   requireFreePorts,
-  runCommand
+  runCommand,
+  runFoundationDatabaseTest
 } from '../test-integration.mjs';
 
 test('integration discovery includes newly built health integration tests', async () => {
@@ -21,6 +23,50 @@ test('integration discovery includes newly built health integration tests', asyn
       join(dir, 'health.contract.test.js'),
       join(dir, 'health.integration.test.js')
     ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('stale integration output is removed before discovery without deleting source files', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'handoff-clean-build-'));
+  const apiRoot = join(dir, 'apps', 'api');
+  const dist = join(apiRoot, 'dist');
+  const testDir = join(dist, 'tests');
+  const stale = join(testDir, 'deleted.integration.test.js');
+  const source = join(apiRoot, 'src', 'keep.ts');
+  try {
+    await mkdir(testDir, { recursive: true });
+    await mkdir(join(apiRoot, 'src'), { recursive: true });
+    await writeFile(stale, 'stale');
+    await writeFile(source, 'keep');
+    await cleanApiBuild(dist, apiRoot);
+    await assert.rejects(access(stale), { code: 'ENOENT' });
+    await mkdir(testDir, { recursive: true });
+    const contract = join(testDir, 'health.contract.test.js');
+    await writeFile(contract, 'current build');
+    assert.deepEqual(await discoverIntegrationTests(testDir), [contract]);
+    assert.equal(await readFile(source, 'utf8'), 'keep');
+    await assert.rejects(cleanApiBuild(join(dir, 'other', 'dist'), apiRoot), /UNSAFE_BUILD_DIRECTORY/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('failed database setup child gets exact project cleanup and preserves both failures', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'handoff-foundation-child-'));
+  const script = join(dir, 'fail.mjs');
+  const pidFile = join(dir, 'pid');
+  const projects = [];
+  try {
+    await writeFile(script, `import { writeFileSync } from 'node:fs';\nwriteFileSync(process.argv[2], String(process.pid));\nprocess.exit(7);\n`);
+    await assert.rejects(runFoundationDatabaseTest({
+      testCommand: process.execPath,
+      testArgs: [script, pidFile],
+      downProject: async project => { projects.push(project); throw new Error('private'); }
+    }), error => error.message ===
+      'DATABASE_SETUP_TEST_FAILED: EXIT_7; CLEANUP_FAILED: FOUNDATION_DATABASE');
+    assert.deepEqual(projects, [`handoff-foundation-${await readFile(pidFile, 'utf8')}`]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
