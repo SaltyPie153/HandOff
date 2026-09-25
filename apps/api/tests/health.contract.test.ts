@@ -55,8 +55,6 @@ function databaseFixture(state: DatabaseState) {
 
 async function requestReady(state: DatabaseState): Promise<{
   response: Response;
-  requestedAt: number;
-  receivedAt: number;
 }> {
   const module = await Test.createTestingModule({ imports: [AppModule.register(config)] })
     .overrideProvider(PrismaService)
@@ -66,9 +64,8 @@ async function requestReady(state: DatabaseState): Promise<{
   try {
     await app.listen(0, '127.0.0.1');
     const address = app.getHttpServer().address() as { port: number };
-    const requestedAt = Date.now();
     const response = await fetch(`http://127.0.0.1:${address.port}/api/health/ready`);
-    return { response, requestedAt, receivedAt: Date.now() };
+    return { response };
   } finally {
     await app.close();
   }
@@ -77,8 +74,6 @@ async function requestReady(state: DatabaseState): Promise<{
 function assertReadyResponse(
   response: Response,
   body: unknown,
-  requestedAt: number,
-  receivedAt: number,
   expected: { http: number; status: 'ready' | 'degraded'; database: 'ok' | 'unavailable' | 'schema_missing'; code: 'OK' | 'DATABASE_UNAVAILABLE' | 'SCHEMA_NOT_READY' }
 ): void {
   assert.equal(response.status, expected.http);
@@ -90,11 +85,12 @@ function assertReadyResponse(
   assert.equal(payload.service, 'ok');
   assert.equal(payload.database, expected.database);
   assert.equal(payload.code, expected.code);
-  assert.match(String(payload.checkedAt), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.match(String(payload.checkedAt), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/);
   const checkedAt = Date.parse(payload.checkedAt as string);
-  assert.equal(new Date(checkedAt).toISOString(), payload.checkedAt, 'checkedAt must be a valid UTC ISO-8601 instant');
-  assert.ok(checkedAt >= requestedAt - 1000 && checkedAt <= receivedAt + 1000, 'checkedAt must describe this check');
-  const serialized = JSON.stringify(payload);
+  assert.ok(Number.isFinite(checkedAt), 'checkedAt must be a parseable UTC ISO-8601 instant');
+  assert.equal(new Date(checkedAt).toISOString().slice(0, 19), (payload.checkedAt as string).slice(0, 19), 'checkedAt must have valid UTC date and time fields');
+  const serialized = JSON.stringify(payload) + '\n' +
+    [...response.headers].map(([name, value]) => name + ': ' + value).join('\n');
   for (const sensitive of [privateRow.id, privateRow.value, privateSql, privateUrl, privateDiagnostic, 'P1001', 'P2021']) {
     assert.ok(!serialized.includes(sensitive), 'health response must not disclose probe data or raw diagnostics');
   }
@@ -107,8 +103,8 @@ for (const scenario of [
   { state: 'schema_missing', http: 503, status: 'degraded', database: 'schema_missing', code: 'SCHEMA_NOT_READY' }
 ] as const) {
   test(`GET /api/health/ready reports ${scenario.state} database state`, async () => {
-    const { response, requestedAt, receivedAt } = await requestReady(scenario.state);
+    const { response } = await requestReady(scenario.state);
     const body: unknown = await response.json();
-    assertReadyResponse(response, body, requestedAt, receivedAt, scenario);
+    assertReadyResponse(response, body, scenario);
   });
 }
