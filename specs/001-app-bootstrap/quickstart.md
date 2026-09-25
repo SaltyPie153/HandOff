@@ -66,10 +66,9 @@ npm run build
 npm run typecheck
 npm test
 pwsh -NoProfile -File scripts/check-harness.ps1
-pwsh -NoProfile -File scripts/test-harness.ps1
 ```
 
-Harness 검사와 앱 빌드·단위 테스트의 범위를 구분해 기록합니다. 현재 테스트 통과만으로 실제 DB 연결, 장애 복구, 보존성 또는 제품 기능 완료를 주장할 수 없습니다.
+Harness 문서 검사와 앱 빌드·단위 테스트의 범위를 구분해 기록합니다. `test-harness.ps1`은 현재 격리 fixture가 `docs/product/technical-design.md`에서 참조하는 `specs/001-app-bootstrap` 파일을 복사하지 않아 실패하며, 통과한 부트스트랩 검사로 기록할 수 없습니다. 이 fixture 문제는 제품 부트스트랩 실패를 뜻하지 않습니다. 현재 통과 검사만으로 실제 DB 연결, 장애 복구, 보존성 또는 제품 기능 완료를 주장할 수 없습니다.
 
 ## 구현 예정: US2/US3 검증
 

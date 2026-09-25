@@ -37,10 +37,9 @@ npm run build
 npm run typecheck
 npm test
 pwsh -NoProfile -File scripts/check-harness.ps1
-pwsh -NoProfile -File scripts/test-harness.ps1
 ```
 
-앞의 세 명령은 현재 코드의 빌드·타입·DB 비의존 테스트입니다. Harness 검사 결과를 제품 전체 검증으로 해석하지 마세요.
+앞의 세 명령은 현재 코드의 빌드·타입·DB 비의존 테스트입니다. `check-harness.ps1`은 문서 링크 검사를 통과했지만 제품 전체 검증은 아닙니다. `test-harness.ps1`은 현재 격리 fixture가 기술 설계 문서의 링크 대상인 `specs/001-app-bootstrap` 파일을 복사하지 않아 실패합니다. 이는 제품 부트스트랩 실패를 뜻하지 않습니다.
 
 ## 구현 예정
 
