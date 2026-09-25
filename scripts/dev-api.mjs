@@ -9,6 +9,32 @@ const apiRoot = join(root, 'apps', 'api');
 const compilerPath = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const entryPath = join(apiRoot, 'dist', 'src', 'main.js');
 const host = '127.0.0.1';
+const requiredFields = [
+  'NODE_ENV', 'API_PORT', 'WEB_PORT', 'DB_PORT',
+  'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB', 'DATABASE_URL'
+];
+const safeChildDiagnostics = new Set([
+  'INTERNAL_ERROR',
+  ...requiredFields.map(field => 'MISSING_SETTING: ' + field),
+  'UNSAFE_ENVIRONMENT: NODE_ENV',
+  'UNSAFE_DATABASE: POSTGRES_DB',
+  'INVALID_PORT: API_PORT',
+  'INVALID_PORT: WEB_PORT',
+  'INVALID_PORT: DB_PORT',
+  'PORT_COLLISION: PORT',
+  'INVALID_DATABASE_URL: DATABASE_URL',
+  'UNSAFE_DATABASE_HOST: DATABASE_URL',
+  'DATABASE_SETTING_MISMATCH: DATABASE_URL',
+  'PORT_IN_USE: API_PORT'
+]);
+
+function safeChildDiagnostic(output, truncated) {
+  if (truncated) return null;
+  const line = output.replace(/\r?\n$/, '');
+  const prefix = 'API_START_FAILED: ';
+  if (!line.startsWith(prefix)) return null;
+  return safeChildDiagnostics.has(line.slice(prefix.length)) ? line : null;
+}
 
 async function checkApiPort(port) {
   const server = createServer();
@@ -111,10 +137,14 @@ async function run() {
           await stop(runtime, runtimeDone);
         }
         if (summary[1] !== '0' || stopping) return;
-        runtime = start([entryPath], ['ignore', 'ignore', 'pipe']);
+        runtime = start([entryPath], ['ignore', 'pipe', 'pipe']);
+        runtime.stdout.pipe(process.stdout);
         let runtimeError = '';
+        let runtimeErrorTruncated = false;
         runtime.stderr.on('data', chunk => {
-          runtimeError = (runtimeError + chunk.toString()).slice(-8_192);
+          const next = runtimeError + chunk.toString();
+          if (next.length > 8_192) runtimeErrorTruncated = true;
+          runtimeError = next.slice(-8_192);
         });
         runtimeDone = closed(runtime, 'node');
         const current = runtime;
@@ -122,7 +152,7 @@ async function run() {
           if (!stopping && !plannedStops.has(current)) {
             finish({
               ...result,
-              portInUse: runtimeError.trim() === 'API_START_FAILED: PORT_IN_USE: API_PORT'
+              childDiagnostic: safeChildDiagnostic(runtimeError, runtimeErrorTruncated)
             });
           }
         });
@@ -138,9 +168,12 @@ async function run() {
   await restart;
   await Promise.all([stop(runtime, runtimeDone), stop(compiler, compilerDone)]);
   if (result.name === 'signal') return 0;
-  if (result.portInUse) {
-    process.stderr.write('DEV_API_FAILED: PORT_IN_USE: API_PORT\n');
-    return 1;
+  if (result.childDiagnostic) {
+    const diagnostic = result.childDiagnostic === 'API_START_FAILED: PORT_IN_USE: API_PORT'
+      ? 'DEV_API_FAILED: PORT_IN_USE: API_PORT'
+      : result.childDiagnostic;
+    process.stderr.write(diagnostic + '\n');
+    return result.code || 1;
   }
   process.stderr.write('DEV_API_FAILED: CHILD_FAILED: ' + result.name.toUpperCase() + '\n');
   return result.code || 1;
