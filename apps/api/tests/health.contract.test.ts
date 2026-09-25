@@ -71,6 +71,20 @@ async function requestReady(state: DatabaseState): Promise<{
   }
 }
 
+function assertUtcIsoInstant(value: unknown): void {
+  assert.ok(typeof value === 'string', 'checkedAt must be a UTC ISO-8601 string');
+  assert.match(value, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z$/);
+  assert.ok(Number.isFinite(Date.parse(value)), 'checkedAt must be a parseable UTC ISO-8601 instant');
+}
+
+function assertNoPrivateDiagnostics(body: unknown, headers: Headers): void {
+  const serialized = (JSON.stringify(body) + '\n' +
+    [...headers].map(([name, value]) => name + ': ' + value).join('\n')).toLowerCase();
+  for (const sensitive of [privateRow.id, privateRow.value, privateSql, privateUrl, privateDiagnostic, 'P1001', 'P2021']) {
+    assert.ok(!serialized.includes(sensitive.toLowerCase()), 'health response must not disclose probe data or raw diagnostics');
+  }
+}
+
 function assertReadyResponse(
   response: Response,
   body: unknown,
@@ -85,16 +99,28 @@ function assertReadyResponse(
   assert.equal(payload.service, 'ok');
   assert.equal(payload.database, expected.database);
   assert.equal(payload.code, expected.code);
-  assert.match(String(payload.checkedAt), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/);
-  const checkedAt = Date.parse(payload.checkedAt as string);
-  assert.ok(Number.isFinite(checkedAt), 'checkedAt must be a parseable UTC ISO-8601 instant');
-  assert.equal(new Date(checkedAt).toISOString().slice(0, 19), (payload.checkedAt as string).slice(0, 19), 'checkedAt must have valid UTC date and time fields');
-  const serialized = JSON.stringify(payload) + '\n' +
-    [...response.headers].map(([name, value]) => name + ': ' + value).join('\n');
-  for (const sensitive of [privateRow.id, privateRow.value, privateSql, privateUrl, privateDiagnostic, 'P1001', 'P2021']) {
-    assert.ok(!serialized.includes(sensitive), 'health response must not disclose probe data or raw diagnostics');
-  }
+  assertUtcIsoInstant(payload.checkedAt);
+  assertNoPrivateDiagnostics(payload, response.headers);
 }
+
+test('UTC checkedAt accepts minute precision and normalized end of day', () => {
+  for (const value of ['2026-09-25T14:00Z', '2026-09-25T24:00:00Z', '2026-09-25T14:00:00.123456Z']) {
+    assert.doesNotThrow(() => assertUtcIsoInstant(value));
+  }
+});
+
+test('health diagnostics cannot leak through normalized header names or differently cased values', () => {
+  assert.doesNotThrow(() => assertNoPrivateDiagnostics({}, new Headers({ 'content-type': 'application/json' })));
+  for (const headers of [
+    new Headers({ 'X-P1001': 'ordinary' }),
+    new Headers({ 'x-diagnostic': privateSql.toLowerCase() }),
+    new Headers({ 'x-url': privateUrl.toUpperCase() }),
+    new Headers({ 'x-row': privateRow.value.toUpperCase() }),
+    new Headers({ 'x-secret': privateDiagnostic.toUpperCase() })
+  ]) {
+    assert.throws(() => assertNoPrivateDiagnostics({}, headers), /must not disclose/);
+  }
+});
 
 for (const scenario of [
   { state: 'populated', http: 200, status: 'ready', database: 'ok', code: 'OK' },
