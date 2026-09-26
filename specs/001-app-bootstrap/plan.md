@@ -1,9 +1,9 @@
 # Implementation Plan: 앱 기본 골격과 로컬 실행
 
-**Branch**: 현재 `feature/technical-design`; 구현 예정 `feature/app-bootstrap` | **Date**: 2026-09-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `feature/app-bootstrap` (원 설계는 `feature/technical-design`에서 작성) | **Date**: 2026-09-21 | **Spec**: [spec.md](spec.md)
 
 **Input**: `specs/001-app-bootstrap/spec.md`
-**Status**: Phase 0 조사·Phase 1 설계 완료. 앱 구현·설치·실행 검증 전.
+**Status**: Phase 0 조사·Phase 1 설계와 앱 기본 골격 구현·로컬 검증 완료. `develop` 통합 전이며 아래 미래형 문장은 2026-09-21 작성 당시 계획을 설명한다.
 setup-plan의 BRANCH 출력 `001-app-bootstrap`은 기능 식별자이며 실제 Git 브랜치가 아니다.
 
 ## Summary
@@ -130,10 +130,10 @@ MUI theme와 컴포넌트로 화면을 구성한다. 엔드포인트 DTO는 [계
 
 ## Integration Sequence
 
-현재 develop에는 선행 Harness·기술 문서가 없다. 구현 전 별도 통합 단계에서
-공유 대상 문서와 SDD 산출물을 선별하여 검증·리뷰하고 사용자 승인 후 develop에 병합한다.
-로컬 전용 경로 변경과 outputs는 자동 stage하지 않는다.
-이후 develop에서 feature/app-bootstrap을 생성한다. 이번 작업은 브랜치 생성·병합·push를 하지 않는다.
+2026-09-21 계획 당시 `develop`에는 선행 Harness·기술 문서가 없었다. 실제 구현 브랜치
+`feature/app-bootstrap`은 필요한 선행 변경을 포함하여 작성했고 로컬 검증 후 원격에 push했다.
+`develop` 대상 PR의 변경은 리뷰 후 사용자 승인으로 병합하고 병합 결과를 통합 테스트한다.
+Git 제외 `work/`의 로컬 기록이나 별도 `outputs/` 산출물은 자동 stage하지 않는다.
 
 ## Complexity Tracking
 

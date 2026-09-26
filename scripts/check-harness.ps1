@@ -29,9 +29,7 @@ try {
     if ($manifest.requiredFiles -isnot [array] -or $manifest.requiredFiles.Count -eq 0) {
         throw 'requiredFiles must be a nonempty array'
     }
-    if ($manifest.productChecksConfigured -isnot [bool] -or $manifest.productChecksConfigured) {
-        throw 'productChecksConfigured must be false until a real product runner is implemented'
-    }
+    if ($manifest.productChecksConfigured -isnot [bool]) { throw 'productChecksConfigured must be boolean' }
     $files = @()
     foreach ($relative in $manifest.requiredFiles) {
         if ($relative -isnot [string]) { throw 'requiredFiles entries must be strings' }
@@ -40,6 +38,9 @@ try {
     $null = Resolve-LocalFile $root $manifest.productSpec 'productSpec'
     foreach ($required in @('AGENTS.md','README.md','.gitignore','docs/product/spec.md','scripts/check-harness.ps1','scripts/test-harness.ps1')) {
         if ($manifest.requiredFiles -cnotcontains $required) { throw "requiredFiles must include $required" }
+    }
+    if ($manifest.productChecksConfigured -and $manifest.requiredFiles -cnotcontains 'scripts/check-product.ps1') {
+        throw 'requiredFiles must include scripts/check-product.ps1 when product checks are configured'
     }
     $ignore = Get-Content -LiteralPath (Join-Path $root '.gitignore')
     foreach ($rule in @('/work/','.env','.env.*','!.env.example')) {
@@ -66,9 +67,20 @@ try {
         }
     }
     Write-Output "HARNESS: PASS ($($files.Count) files, $linkCount local links)"
-    Write-Output 'PRODUCT: NOT_CONFIGURED'
-    if ($RequireProduct) { exit 2 }
-    exit 0
+    if (-not $RequireProduct) {
+        if ($manifest.productChecksConfigured) { Write-Output 'PRODUCT: NOT_RUN' }
+        else { Write-Output 'PRODUCT: NOT_CONFIGURED' }
+        exit 0
+    }
+    if (-not $manifest.productChecksConfigured) {
+        Write-Output 'PRODUCT: NOT_CONFIGURED'
+        exit 2
+    }
+    $runner = Resolve-LocalFile $root 'scripts/check-product.ps1' 'product runner'
+    $shell = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+    & $shell -NoProfile -File $runner
+    $productExit = $LASTEXITCODE
+    exit $productExit
 } catch {
     Write-Output ('HARNESS: FAIL - ' + $_.Exception.Message)
     exit 1

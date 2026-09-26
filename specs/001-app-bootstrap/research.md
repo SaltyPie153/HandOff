@@ -73,3 +73,18 @@ npm ci, generate, build, 연결 테스트로 조합을 입증한다. 충돌 시 
 이번 기능의 도구·구조·UI·진단·검증 방식은 결정했다.
 정확한 패치 잠금은 구현 시점의 재현성 작업이다.
 인증 세션·가입 거절·첨부·운영 배포·Discord/Codex는 현재 범위 밖이므로 후속 명세에서 결정한다.
+## 구현 시점 버전 검증 — 2026-09-21
+
+- Node.js 24.21.0을 npm의 임시 실행 환경에서 확인했다. 시스템 기본 Node.js는 22.16.0이다.
+- npm registry에서 React 19.3.0, Vite 8.3.0, NestJS 12.0.3, Prisma CLI/client/adapter 7.10.0,
+  TypeScript 5.9.3, MUI Material 9.4.0, Vitest 5.0.1, Playwright 1.63.0을 확인했다.
+  Prisma `latest` dist-tag는 8.0.0-rc.15라서 그대로 사용하지 않고 7.10.0을 고정한다.
+- PostgreSQL 17.11-bookworm 공식 이미지의 manifest digest는
+  `sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`이다.
+  [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html),
+  [Docker Hub tag](https://hub.docker.com/_/postgres/tags?name=17.11-bookworm).
+- 2026-09-25 재개 환경에서 Docker Desktop 4.81.0, Engine 29.6.1, Compose 5.2.0으로
+  고정 digest 이미지를 pull하고 개발·시험 DB가 각각 healthy가 되는 것을 확인했다.
+  두 환경은 loopback의 5432/5433 포트와 별도 project·named volume을 사용하며,
+  일반 down 후에도 두 volume이 유지됐다.
+- 설치 시 npm의 peer dependency와 빌드 결과를 다시 확인한다. 위 버전 조회만으로 조합의 실행 성공을 주장하지 않는다.
