@@ -287,7 +287,7 @@ describe("development health screen", () => {
     expectNoRawDiagnostics();
   });
 
-  it("aborts an unanswered request at exactly 10 seconds and announces unavailable", async () => {
+  it("aborts an unanswered request by 9 seconds to leave time for the 10-second screen deadline", async () => {
     vi.useFakeTimers();
     const pending = deferredResponse();
     let requestSignal: AbortSignal | undefined;
@@ -300,7 +300,7 @@ describe("development health screen", () => {
     checkAgain();
 
     expect(requestSignal).toBeInstanceOf(AbortSignal);
-    await act(async () => { vi.advanceTimersByTime(9_999); });
+    await act(async () => { vi.advanceTimersByTime(8_999); });
     expect(requestSignal?.aborted).toBe(false);
     expectLiveStatus(/확인 중|점검 중|검사 중/);
 

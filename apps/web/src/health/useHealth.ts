@@ -107,7 +107,7 @@ export function useHealth() {
       if (!isCurrent()) return;
       finish({ status: "unavailable", attemptedAt });
       controller.abort();
-    }, 10_000);
+    }, 9_000);
     active.current = { id, controller, timer };
     setState({ status: "checking" });
 
