@@ -103,7 +103,7 @@
 
 - [X] T033 scripts/check-product.ps1에 실제 build/typecheck/test/test:integration/test:e2e 명령을 실행하고 실패 코드를 전달하는 제품 검사 진입점을 구현한다. scripts/check-harness.ps1과 docs/harness/manifest.json은 이 실행기에 연결하고 scripts/test-harness.ps1에 제품 성공/실패 전파 검증을 추가한 후에만 productChecksConfigured를 변경한다. 문서 검사와 제품 결과를 분리한다.
 - [X] T034 README.md, docs/harness/checks.md, docs/product/technical-design.md, specs/001-app-bootstrap/quickstart.md에 실제 명령·버전·검증 범위를 동기화한다. 전체 제품 R01~R25를 이 기능 완료만으로 구현 완료 표시하지 않는다.
-- [ ] T035 새 사본에서 팀원 한 명이 추가 구두 도움 없이 최초 실행과 ready 확인을 수행하도록 하고 work/001-app-bootstrap/onboarding.md에 SC-001 결과를 기록한다. 에이전트 단독 실행으로 팀원 검증을 대체하지 않으며 참여 전에는 미검증으로 남긴다.
+- [x] T035 새 사본에서 팀원 한 명이 추가 구두 도움 없이 최초 실행과 ready 확인을 수행하도록 하고 work/001-app-bootstrap/onboarding.md에 SC-001 결과를 기록한다. 에이전트 단독 실행으로 팀원 검증을 대체하지 않으며 참여 전에는 미검증으로 남긴다.
 - [x] T036 scripts/check-product.ps1 및 Harness 검사를 실행하고 work/001-app-bootstrap/final-verification.md에 FR-001~010/SC-001~005별 근거, 실제 exit code, 제한과 리뷰 지적 조치 결과를 기록한다. 미실행·실패·수동 확인 대기는 성공과 구별한다.
 - [x] T037 work/001-app-bootstrap/resume.md에 최종 변경·남은 항목·통합 준비 상태를 정리한다. 사용자 요청 시에만 검증된 기능을 develop에 병합하고 통합 테스트 후 main 최종 반영 절차를 따른다. 로컬 전용 변경을 포함하거나 main에 직접 push하지 않는다.
 
