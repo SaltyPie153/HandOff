@@ -10,8 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const apiLauncher = fileURLToPath(new URL('../dev-api.mjs', import.meta.url));
-const viteCli = fileURLToPath(new URL('../../apps/web/node_modules/vite/bin/vite.js', import.meta.url));
-const webRoot = join(root, 'apps', 'web');
+const webLauncher = fileURLToPath(new URL('../dev-web.mjs', import.meta.url));
 const host = '127.0.0.1';
 const maxOutput = 65536;
 
@@ -196,11 +195,43 @@ test('dev:web rejects an occupied configured port without moving or stopping the
     const envPath = join(dir, '.env');
     const secret = randomBytes(18).toString('hex');
     await writeFile(envPath, envText(apiPort, webPort, dbPort, secret), { mode: 0o600 });
-    running = start(viteCli, webRoot, envPath);
+    running = start(webLauncher, root, envPath);
     assert.equal(await waitForClose(running.child, 8_000), 1);
     assert.equal(occupant.listening, true);
     assert.equal(await canConnect(webPort), true, 'the web port occupant must survive');
     assertOnlyDiagnostic(running.output(), secret, 'DEV_WEB_FAILED: PORT_IN_USE: WEB_PORT');
+  } finally {
+    await cleanupIndependently([
+      ['web candidate', () => running ? stopCandidate(running.child) : Promise.resolve()],
+      ['occupying fixture', () => closeServer(occupant)],
+      ['temporary settings', () => dir ? withDeadline(rm(dir, { recursive: true, force: true }), 2000, 'temporary settings removal') : Promise.resolve()]
+    ]);
+  }
+});
+
+test('dev:web rejects unsafe and inconsistent settings before checking the web port', { timeout: 20_000 }, async () => {
+  const occupant = await listen();
+  let dir;
+  let running;
+  try {
+    const [webPort, apiPort, dbPort] = await fixturePorts(occupant);
+    dir = await mkdtemp(join(tmpdir(), 'handoff-dev-web-config-test-'));
+    const envPath = join(dir, '.env');
+    const secret = randomBytes(18).toString('hex');
+    const validText = envText(apiPort, webPort, dbPort, secret);
+    for (const [settings, expected] of [
+      [validText.replace('NODE_ENV=test', 'NODE_ENV=production'), 'DEV_WEB_FAILED: UNSAFE_ENVIRONMENT: NODE_ENV'],
+      [validText.replace(`DB_PORT=${dbPort}`, 'DB_PORT='), 'DEV_WEB_FAILED: MISSING_SETTING: DB_PORT'],
+      [validText.replace(`POSTGRES_PASSWORD=${secret}`, 'POSTGRES_PASSWORD=other'), 'DEV_WEB_FAILED: DATABASE_SETTING_MISMATCH: DATABASE_URL']
+    ]) {
+      await writeFile(envPath, settings, { mode: 0o600 });
+      running = start(webLauncher, root, envPath);
+      assert.equal(await waitForClose(running.child, 8_000), 1);
+      assertOnlyDiagnostic(running.output(), secret, expected);
+      running = undefined;
+    }
+    assert.equal(occupant.listening, true);
+    assert.equal(await canConnect(webPort), true, 'the web port occupant must survive');
   } finally {
     await cleanupIndependently([
       ['web candidate', () => running ? stopCandidate(running.child) : Promise.resolve()],

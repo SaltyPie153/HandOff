@@ -1,10 +1,10 @@
 # Feature Specification: 앱 기본 골격과 로컬 실행
 
-**Feature Branch**: `feature/app-bootstrap` (구현 시 develop 기반 생성 예정; 현재 문서 작성 브랜치는 feature/technical-design)
+**Feature Branch**: `feature/app-bootstrap` (원 명세는 `feature/technical-design`에서 작성)
 
 **Created**: 2026-09-21
 
-**Status**: Draft — 명세 품질 검토 완료, 구현 전
+**Status**: 앱 기본 골격 범위 구현·로컬 검증 완료, 팀원 새 사본 실행 결과 수신. `develop` 통합 전
 
 **Input**: User description: "HandOff를 SDD로 진행하며, 첫 기능으로 로컬에서 웹·서비스·저장소를 실행하고 연결을 검증할 앱 기본 골격 명세를 작성한다."
 
@@ -145,5 +145,5 @@ FR-010의 수용 조건: 외부 자격 증명을 제공하지 않은 새 환경�
   운영 배포·운영 백업·공개 서비스 준비는 후속 기능에 포함한다.
 - 이 기능은 개발 환경 내부에서만 사용한다. 운영 공개는 별도 인증·권한·배포 명세와 검증을 거친다.
 - 의존 자료 최초 다운로드 시간은 성공 기준의 시간 측정에 포함하지 않는다.
-- 구현 브랜치 생성 전에 기존 Harness·기술 문서가 develop에 아직 병합되지 않은 상태를 정리해야 한다.
-  이번 명세 작성은 기존 문서 브랜치에서 수행하며 병합이나 구현 브랜치 생성을 수행하지 않는다.
+- 명세 작성 당시 기존 Harness·기술 문서가 `develop`에 아직 병합되지 않아 선행 변경을 정리해야 했다.
+  실제 구현 브랜치는 필요한 변경을 포함해 생성했으며, `develop` 통합은 별도 PR·검증 절차를 따른다.

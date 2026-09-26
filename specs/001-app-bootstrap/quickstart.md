@@ -16,6 +16,8 @@ npm run db:migrate
 
 `dev:init`은 로컬 `.env`가 없을 때만 무작위 DB 비밀번호를 담아 생성하고 기존 파일은 보존합니다. `.env`는 Git 제외 파일이며 `.env.example`의 비밀번호는 자리표시자입니다. 실제 비밀번호·토큰·`DATABASE_URL`은 문서, 로그, 이슈에 붙여 넣지 마세요. `db:up`은 개발용 Compose DB가 준비될 때까지 기다립니다. `db:migrate`는 저장소의 기존 migration을 적용하며 DB를 초기화하지 않습니다.
 
+`db:up`에서 `DB_COMMAND_FAILED: DOCKER_NOT_FOUND`가 나오면 현재 PowerShell에서 Docker CLI를 찾을 수 있는지 확인하세요. `DB_COMMAND_FAILED: DOCKER_UNAVAILABLE`이면 Docker Desktop의 Linux 엔진이 실행 중이고 접근 가능한지 확인하세요. 둘 다 비밀값을 표시하지 않는 진단이며, 다른 컨테이너를 임의로 종료하지 마세요.
+
 준비 후 터미널 2와 3을 열고, 각각 저장소 루트에서 다음 명령을 실행한 채 둡니다.
 
 터미널 2 — API:
@@ -43,6 +45,8 @@ npm run db:down
 ```
 
 이 명령은 `handoff-dev` 개발 Compose 프로젝트를 내리고 DB volume을 보존합니다. 공유 중이거나 소유자가 불분명한 개발 DB는 계속 실행해 두세요. `docker compose down -v`, volume 삭제, DB reset은 일반 종료 절차에 포함되지 않습니다. 다른 프로세스나 컨테이너를 종료하지 마세요.
+
+같은 PC의 여러 작업 사본은 현재 고정된 `handoff-dev` Compose 이름과 volume을 공유할 수 있습니다. 실행 전 기존 컨테이너의 작업 경로를 확인해 다른 사본이면 거부하지만, 확인 직후의 경합과 컨테이너 없이 volume만 남은 경우의 소유권은 완전히 판별하지 못합니다. 여러 사본에서 개발 DB를 동시에 다루지 말고, 소유자가 불분명하면 `db:up/down`을 실행하지 않은 채 팀과 확인하세요. 기존 volume을 임의로 삭제하거나 다른 사본으로 자동 이전하지 않습니다.
 
 ## 포트 충돌
 

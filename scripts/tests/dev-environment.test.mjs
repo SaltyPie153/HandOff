@@ -32,6 +32,21 @@ test("rejects missing, remote, production and mismatched settings without exposi
   }
 });
 
+test("reports malformed percent escapes in database credentials as a config error", () => {
+  for (const databaseUrl of [
+    "postgresql://bad%:local-test-value@127.0.0.1:5432/handoff_dev",
+    "postgresql://handoff:bad%25%xx@127.0.0.1:5432/handoff_dev"
+  ]) {
+    assert.throws(() => validateConfig({ ...valid(), DATABASE_URL: databaseUrl }), error => {
+      assert.equal(error.name, "ConfigError");
+      assert.equal(error.code, "INVALID_DATABASE_URL");
+      assert.equal(error.field, "DATABASE_URL");
+      assert.doesNotMatch(error.message, /local-test-value|bad%/);
+      return true;
+    });
+  }
+});
+
 test("initialization creates one local config and preserves it on repeat", async () => {
   const dir = await mkdtemp(join(tmpdir(), "handoff-env-"));
   const path = join(dir, ".env");

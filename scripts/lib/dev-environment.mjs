@@ -51,9 +51,17 @@ export function validateConfig(input) {
     throw new ConfigError("INVALID_DATABASE_URL", "DATABASE_URL");
   }
   if (!localHost(url.hostname)) throw new ConfigError("UNSAFE_DATABASE_HOST", "DATABASE_URL");
+  let username;
+  let password;
+  try {
+    username = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+  } catch {
+    throw new ConfigError("INVALID_DATABASE_URL", "DATABASE_URL");
+  }
   if (url.search || url.hash || url.pathname !== `/${input.POSTGRES_DB}` ||
-      decodeURIComponent(url.username) !== input.POSTGRES_USER ||
-      decodeURIComponent(url.password) !== input.POSTGRES_PASSWORD ||
+      username !== input.POSTGRES_USER ||
+      password !== input.POSTGRES_PASSWORD ||
       Number(url.port || "5432") !== dbPort) {
     throw new ConfigError("DATABASE_SETTING_MISMATCH", "DATABASE_URL");
   }
