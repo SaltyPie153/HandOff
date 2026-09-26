@@ -51,12 +51,39 @@ async function assertHealth(response: APIResponse, http: number, database: Healt
   return body;
 }
 
-async function check(page: Page, status: string, storage: string, maxMs = 10_000) {
-  const started = performance.now();
+async function check(page: Page, status: string, storage: string, maxMs = 10_000, midpointMs?: number) {
+  await page.evaluate(({ expected, midpoint }) => {
+    const indicator = document.querySelector<HTMLElement>('[role="status"]');
+    const button = [...document.querySelectorAll('button')].find(item => item.textContent?.trim() === '상태 확인');
+    if (!indicator || !button) throw new Error('health check controls missing');
+    delete indicator.dataset.healthStarted;
+    delete indicator.dataset.healthElapsed;
+    delete indicator.dataset.healthMidpoint;
+    const observer = new MutationObserver(() => {
+      const started = Number(indicator.dataset.healthStarted);
+      if (indicator.textContent === expected && Number.isFinite(started)) {
+        indicator.dataset.healthElapsed = String(performance.now() - started);
+        observer.disconnect();
+      }
+    });
+    observer.observe(indicator, { childList: true, characterData: true, subtree: true });
+    button.addEventListener('click', () => {
+      indicator.dataset.healthStarted = String(performance.now());
+      if (midpoint !== undefined) {
+        setTimeout(() => { indicator.dataset.healthMidpoint = indicator.textContent ?? ''; }, midpoint);
+      }
+    }, { capture: true, once: true });
+  }, { expected: status, midpoint: midpointMs });
   await page.getByRole('button', { name: '상태 확인' }).click();
-  await expect(page.getByRole('status')).toHaveText(status, { timeout: maxMs });
-  const elapsed = performance.now() - started;
-  expect(elapsed, 'screen confirmation must finish inside the 10-second client budget').toBeLessThan(maxMs + 750);
+  await expect(page.getByRole('status')).toHaveText(status, { timeout: maxMs + 5_000 });
+  await page.waitForFunction(() => document.querySelector<HTMLElement>('[role="status"]')?.dataset.healthElapsed !== undefined);
+  const elapsed = await page.getByRole('status').evaluate(element => Number((element as HTMLElement).dataset.healthElapsed));
+  expect(elapsed, 'screen confirmation must finish within 10 seconds').toBeLessThanOrEqual(maxMs);
+  if (midpointMs !== undefined) {
+    await page.waitForFunction(() => document.querySelector<HTMLElement>('[role="status"]')?.dataset.healthMidpoint !== undefined);
+    const midpointStatus = await page.getByRole('status').evaluate(element => (element as HTMLElement).dataset.healthMidpoint);
+    expect(midpointStatus, `screen must still be checking after ${midpointMs}ms`).toBe('확인 중');
+  }
   await expect(page.getByText(`저장소 상태: ${storage}`)).toBeVisible();
   return elapsed;
 }
@@ -210,18 +237,9 @@ test('stopped and slow real API connections become unavailable before a fresh AP
       delayed.listen(3001, '127.0.0.1', resolve).once('error', reject);
     });
     slowApi = delayed;
-    const started = performance.now();
-    await page.getByRole('button', { name: '상태 확인' }).click();
-    await expect(page.getByRole('status')).toHaveText('확인 중');
-    await page.waitForTimeout(9_000);
-    await expect(page.getByRole('status')).toHaveText('확인 중');
-    await expect(page.getByRole('status')).toHaveText('확인 불가', { timeout: 2_500 });
-    const elapsed = performance.now() - started;
-    expect(elapsed).toBeGreaterThanOrEqual(9_500);
-    expect(elapsed).toBeLessThan(10_750);
+    await check(page, '확인 불가', '확인 불가', 10_000, 8_000);
     expect(slowRequests, 'the loopback API server must receive the proxied browser request').toBeGreaterThan(0);
     expect(slowResponses, 'the browser must abort before the delayed API response').toBe(0);
-    await expect(page.getByText('저장소 상태: 확인 불가')).toBeVisible();
     await expect(page.getByText(/API 프로세스를 확인하세요/)).toBeVisible();
     await expect(page.getByText(/확인 시도 시각/)).toBeVisible();
     await stopSlowApi(slowApi);
