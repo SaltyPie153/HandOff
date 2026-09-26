@@ -25,7 +25,9 @@
     "test": "npm run test:scripts && npm run test --workspace @handoff/api && npm run test --workspace @handoff/web",
     "test:integration": "node scripts/test-integration.mjs",
     "test:e2e": "playwright test",
+    "preverify:bootstrap": "npm run db:generate && npm run build --workspace @handoff/api",
     "verify:bootstrap": "node scripts/verify-bootstrap.mjs",
+    "preprobe": "npm run db:generate && npm run build --workspace @handoff/api",
     "probe": "node scripts/probe.mjs"
   },
   "devDependencies": {
