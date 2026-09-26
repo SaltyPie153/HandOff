@@ -7,13 +7,13 @@
 | 명령 | 확인 범위 |
 |---|---|
 | `npm run build`, `npm run typecheck`, `npm test` | 웹·API 빌드, 타입 및 DB 비의존 테스트 |
-| `npm run test:integration` | 격리 `handoff-test-*` PostgreSQL에서 DB 설정, health 계약·통합, probe·검증 도구 테스트 |
-| `npm run test:e2e` | 격리 브라우저·API·DB의 정상·장애·복구, 같은 probe의 웹·API·DB 재시작 3회 보존, 정상 0→DB 장애 1→복구 0, 지정 ID 정리 |
+| `npm run test:integration` | `handoff-foundation-*`의 빈 시험 DB migration을 먼저 확인한 뒤 `handoff-test-*`에서 health 계약·실DB, probe·검증 도구 테스트 |
+| `npm run test:e2e` | `handoff-test-*` 브라우저·API·DB의 정상·장애·복구, 같은 probe의 웹·API·DB 재시작 3회 보존, 정상 0→DB 장애 1→복구 0, 지정 ID 정리 |
 | `pwsh -NoProfile -File scripts/check-harness.ps1` | 필수 문서·로컬 링크 검사. 제품 명령은 실행하지 않고 `PRODUCT: NOT_RUN` |
 | `pwsh -NoProfile -File scripts/test-harness.ps1` | Harness 검사기의 격리 fixture와 제품 결과 전파 시나리오 |
 | `pwsh -NoProfile -File scripts/check-product.ps1` 또는 `scripts/check-harness.ps1 -RequireProduct` | build → typecheck → test → test:integration → test:e2e; 하위 실패 코드 전달 |
 
-격리 시험은 시험 전용 volume에서만 정리하고 개발 DB의 종료·초기화를 지시하지 않는다. [Quickstart](../../specs/001-app-bootstrap/quickstart.md)의 포트·자원 소유 조건을 먼저 확인한다. 이 검사에는 로그인·프로젝트·계약·첨부 권한·Discord/Codex 연동, 운영 GCP 백업과 별도 환경 복구가 포함되지 않는다. 특히 R25는 개발 DB의 3회 보존 시험만으로 통과 처리할 수 없다.
+두 격리 프로젝트의 실행기는 각자 생성한 시험 전용 volume의 정리를 시도하고 정리 실패를 보고한다. 개발 DB의 종료·초기화를 지시하지 않는다. [Quickstart](../../specs/001-app-bootstrap/quickstart.md)의 포트·자원 소유 조건을 먼저 확인한다. 이 검사에는 로그인·프로젝트·계약·첨부 권한·Discord/Codex 연동, 운영 GCP 백업과 별도 환경 복구가 포함되지 않는다. 특히 R25는 시험 DB의 3회 보존만으로 통과 처리할 수 없다.
 
 ## 제품 기준 R01~R25
 

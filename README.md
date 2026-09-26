@@ -43,7 +43,7 @@ pwsh -NoProfile -File scripts/test-harness.ps1
 pwsh -NoProfile -File scripts/check-product.ps1
 ```
 
-`npm test`는 DB 비의존 테스트입니다. `test:integration`과 `test:e2e`는 전용 `handoff-test-*` Compose 프로젝트·시험 volume을 만들고 정리합니다. 5433(DB), 3001(API), 5174(웹) 포트를 사용하므로 비어 있어야 합니다. E2E에는 동일 probe의 웹·API·DB 재시작 3회 보존과 정상→DB 장애→복구 검증, 지정 ID 정리가 포함됩니다. 실행 순서와 자원 소유 조건은 Quickstart를 따르세요.
+`npm test`는 DB 비의존 테스트입니다. `test:integration`은 먼저 `handoff-foundation-*` 시험 Compose 프로젝트·volume에서 빈 DB migration을 검사하고, 이어 `handoff-test-*` fixture에서 통합 검사를 수행합니다. `test:e2e`는 `handoff-test-*` fixture를 사용합니다. 각 실행기는 자신이 만든 시험 자원의 정리를 시도하고 실패를 보고합니다. 시험 포트 5433(DB), 3001(API), 5174(웹)가 비어 있어야 합니다. E2E에는 동일 probe의 웹·API·DB 재시작 3회 보존과 정상→DB 장애→복구 검증, 지정 ID 정리가 포함됩니다. 실행 순서와 자원 소유 조건은 Quickstart를 따르세요.
 
 `check-harness.ps1` 기본 실행은 문서·링크 검사만 하고 `PRODUCT: NOT_RUN`을 출력합니다. `test-harness.ps1`은 검사기의 격리 fixture를 시험합니다. `check-product.ps1`은 build → typecheck → test → test:integration → test:e2e를 실행합니다. `check-harness.ps1 -RequireProduct`도 같은 제품 실행기를 호출합니다. 성공 범위는 앱 기본 골격이며 [R01~R25](docs/harness/checks.md)의 업무·운영 검증으로 확대 해석하지 않습니다.
 

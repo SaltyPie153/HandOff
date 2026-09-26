@@ -83,9 +83,9 @@ npm run test:integration
 npm run test:e2e
 ```
 
-첫 명령에 listener가 표시되면 소유자를 확인하고 빈 포트에서만 시험합니다. 시험 실행기는 매번 `handoff-test-*` 전용 Compose project와 `handoff_test` DB/volume을 만들고, 설정·포트·DB 대상을 확인하며 종료 시 자신이 만든 자원을 정리합니다. 정리 실패도 실패로 보고합니다. 기존 `handoff-dev` 컨테이너·volume을 내리거나 초기화하지 않습니다.
+포트 확인 명령에 listener가 표시되면 소유자를 확인하고 빈 포트에서만 시험합니다. `test:integration`은 먼저 `handoff-foundation-*` Compose project/volume의 빈 `handoff_test` DB에 초기 migration을 명시적으로 적용·재적용하고, 이어 `handoff-test-*` project/volume에서 나머지 통합 검사를 실행합니다. `test:e2e`는 별도의 `handoff-test-*` fixture를 만듭니다. 실행기는 설정·포트·DB 대상을 확인하고 자신이 만든 두 종류의 시험 자원을 종료 시 정리하려 시도하며, 정리 실패를 보고합니다. 기존 `handoff-dev` 컨테이너·volume을 내리거나 초기화하지 않습니다.
 
-`test:integration`은 개발 초기화와 health 계약·실DB, probe·검증 명령을 시험합니다. `test:e2e`에는 다음 [로컬 부트스트랩 계약](contracts/local-bootstrap.md)의 보존·장애 흐름이 포함됩니다.
+`test:integration`은 시험 DB 초기 migration과 health 계약·실DB, probe·검증 명령을 시험합니다. `test:e2e`에는 다음 [로컬 부트스트랩 계약](contracts/local-bootstrap.md)의 보존·장애 흐름이 포함됩니다.
 
 1. 시험 DB에 무작위 UUID/value probe를 **한 번만** 생성합니다. 웹·API 종료 → 시험 DB의 일반 `down`/`up` → API·웹 재시작을 3회 반복하고 매회 화면 `준비 완료`와 동일 id/value의 `PROBE_VERIFIED`를 확인합니다. 반복 중 create·seed·reset·volume 삭제는 하지 않습니다.
 2. 별도 시험 probe에서 `verify-bootstrap` 정상 종료 0(`DATABASE: OK`, `PROBE: OK`) → 시험 DB 중단 종료 1(`DATABASE: FAIL`) → 복구 후 종료 0을 확인합니다.
