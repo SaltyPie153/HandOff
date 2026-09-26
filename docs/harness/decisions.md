@@ -20,11 +20,11 @@
 - GCP 서울 리전 asia-northeast3의 VM 한 대. 비용 최소화와 신규 무료 크레딧 활용을 기준으로 한다.
 - Docker + Compose: 개발은 DB만 Docker, React·NestJS는 로컬. 운영은 웹 서버·API·DB를 Compose로 실행한다.
 - DB 데이터와 첨부 원본은 VM 영구 디스크, 외부 백업은 하루 1회 Cloud Storage에 7일 보관. 운영 전 복구를 검증한다.
-- 기술 선택은 완료됐지만 앱·Compose·인증·백업·배포의 구현과 검증은 아직 수행하지 않았다.
+- 2026-09-21 기술 선택 당시 앱·Compose·인증·백업·배포의 구현과 검증은 아직 수행하지 않았다. 앱 기본 골격의 이후 진행은 아래 최신 기록을 따른다.
 
 ## 아직 결정하지 않은 사항
 
-- 정확한 패키지 패치와 설치 검증, 세션 방식, CI/CD. 빌드·UI·패키지 구성과 제품 테스트 명령 계약은 앱 기본 골격 계획에서 선정했으며 아직 구현·실행 전이다.
+- 세션 방식과 CI/CD. 패키지 패치·빌드·UI·제품 테스트 명령 계약은 앱 기본 골격에서 고정·실행했으며 아래 최신 기록을 따른다.
 - Codex 연결 방식 검증, Discord 알림 설치·권한과 로그인 미연결 사용자 처리.
 - 도메인·GCP 프로젝트·VM 사양·최초 관리자 식별값·OAuth 앱 설정·백업 시각과 복구 절차.
 - 가입 거절·계정 연결 해제·프로젝트 관리자 양도·첨부 제한 등 [남은 확인 사항](../product/technical-design.md).
@@ -55,4 +55,10 @@
 - npm workspaces의 웹·API 두 앱, Vite, React와 MUI Material/Emotion을 선정했다.
 - 사용자가 UI 라이브러리를 지금 선정하도록 요청했으며, MUI와 shadcn/ui 비교 근거는 기능 조사 기록에 둔다.
 - Node24 LTS, TypeScript5.9, Nest12, Prisma7, PostgreSQL17 계열을 선택했다. 실제 패치·이미지 digest는 설치 검증 후 고정한다.
-- 이번 작업은 설계만 완료했으며 앱 설치·실행·브랜치 병합·push를 수행하지 않았다.
+- 이 2026-09-21 계획 기록 시점에는 설계만 완료했고 앱 설치·실행·브랜치 병합·push를 수행하지 않았다.
+
+## 앱 기본 골격 진행 상태 — 2026-09-26
+
+- `feature/app-bootstrap`에서 React/MUI 웹, NestJS API, Prisma/PostgreSQL 개발 DB와 상태 진단·개발용 probe를 구현했다. 정확한 패키지 버전과 DB 이미지 digest는 package/lock 및 Compose에 고정했다.
+- 제품 검사(build·typecheck·unit·실DB 통합·E2E)와 Harness 검사는 로컬에서 종료 코드 0으로 실행했다. 실제 팀원 한 명은 지원 도구가 준비된 새 사본에서 Quickstart만으로 시작 화면의 ready를 확인했다고 보고했다. 팀원 PC 원본 로그는 별도로 읽지 않았다.
+- 기능 브랜치는 원격에 push했고 `develop` 대상 PR을 준비 중이다. 병합·운영 배포는 아직 하지 않았다. 로그인·권한·계약·첨부·외부 연동·GCP 백업과 복구는 후속 범위다.
