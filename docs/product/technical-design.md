@@ -31,7 +31,7 @@
 - React·NestJS는 개발자 PC에서 실행한다. 현재 루트 `npm run dev:web`과 `npm run dev:api`가 각각 loopback 웹·API를 시작한다.
 - PostgreSQL은 Docker 컨테이너로 실행한다. 개발 DB는 `npm run db:up`/`npm run db:down`으로 관리하며 named volume을 유지한다.
 - 개발용 DB·첨부·계정 설정은 운영 환경과 분리한다.
-- `npm run test:integration`과 `npm run test:e2e`는 `handoff-test-*` 전용 Compose 프로젝트·volume 및 loopback 5433/3001/5174 포트를 사용한다. 기존 `handoff-dev` DB를 내리지 않는다. CI 자체는 아직 구성되지 않았다.
+- `npm run test:integration`은 `handoff-foundation-*` 전용 Compose 프로젝트·volume에서 빈 시험 DB migration을 먼저 확인하고, `handoff-test-*` 전용 fixture에서 통합 검사를 수행한다. `npm run test:e2e`는 `handoff-test-*` fixture를 사용한다. 두 프로젝트는 각자 만든 시험 자원의 정리를 시도하며 실패를 보고한다. 시험 포트는 loopback 5433/3001/5174이고 기존 `handoff-dev` DB를 내리지 않는다. CI 자체는 아직 구성되지 않았다.
 - 웹 상태 화면과 `GET /api/health/ready`는 개발 DB 연결·BootstrapProbe 스키마 상태를 확인한다. `npm run probe -- create --id <UUID> --value <TEXT>`, `npm run probe -- verify --id <UUID> --value <TEXT>`, `npm run probe -- cleanup --id <UUID>`, `npm run verify:bootstrap -- --id <UUID> --value <TEXT>`는 개발·시험 전용 도구다. 수동으로 호출하면 현재 개발 DB의 자료를 다루므로 DB 소유권을 먼저 확인한다. 자동 보존·장애 검증은 [Quickstart](../../specs/001-app-bootstrap/quickstart.md)의 격리 시험 명령을 사용한다.
 - `pwsh -NoProfile -File scripts/check-harness.ps1` 기본 실행은 문서 검사만 하며 `PRODUCT: NOT_RUN`을 출력한다. `-RequireProduct` 또는 `scripts/check-product.ps1` 직접 실행은 build, typecheck, test, test:integration, test:e2e를 순서대로 실행하고 실패 코드를 전달한다. 이 제품 검사는 앱 기본 골격 범위이며 [R01~R25](../harness/checks.md)의 업무 기능 완료가 아니다.
 
@@ -110,7 +110,7 @@ Cloud Storage: DB·첨부 백업, 7일 보관
 6. Discord 알림과 재시도, Codex 연결 가능성 검증 및 검증된 연동 구현.
 7. 운영 Compose·백업·복구·OAuth 운영 설정, develop 통합 테스트 후 main 최종 반영과 배포.
 
-각 기능은 `develop` 기반 `feature/<기능명>`에서 작업하고 `develop` 통합 테스트를 거쳐 `main`에 최종 병합한다. 이번 문서 브랜치는 아직 develop에 병합되지 않은 Harness 커밋을 선행 변경으로 포함한다. 문서 반영이 앱 구현이나 병합·배포를 의미하지 않는다.
+각 기능은 `develop` 기반 `feature/<기능명>`에서 작업하고 `develop` 통합 테스트를 거쳐 `main`에 최종 병합한다. 현재 `feature/app-bootstrap`에는 로컬 웹·API·DB 골격과 검증 도구가 구현돼 있다. 이 브랜치는 아직 `develop`에 병합되지 않았고 운영 배포도 하지 않았다.
 
 ## 7. 남은 확인 사항
 
