@@ -320,7 +320,12 @@ async function main() {
     environment = await createTestEnvironment({ withServices: true, signal: controller.signal });
     const files = await discoverIntegrationTests();
     const tests = [...files, ...probeTests];
-    const env = { ...environment.env, HANDOFF_TEST_PROJECT: environment.project };
+    const env = {
+      ...environment.env,
+      HANDOFF_TEST_PROJECT: environment.project,
+      HANDOFF_TEST_CONTROL_URL: environment.apiControlUrl,
+      HANDOFF_TEST_CONTROL_TOKEN: environment.apiControlToken
+    };
     for (const file of tests) {
       console.log(`INTEGRATION_TEST: ${file.slice(root.length)}`);
       await runCommand(process.execPath, ['--test', file], {

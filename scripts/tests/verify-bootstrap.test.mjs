@@ -66,6 +66,17 @@ async function compose(env, project, ...args) {
   });
 }
 
+async function controlApi(url, token, action) {
+  assert.match(url ?? '', /^http:\/\/127\.0\.0\.1:\d+$/);
+  assert.ok(token, 'test API control token must be provided');
+  const response = await fetch(`${url}/${action}`, {
+    method: 'POST', headers: { 'x-test-control-token': token },
+    signal: AbortSignal.timeout(15_000)
+  });
+  assert.ok(response.status === 204 || (action === 'start' && response.status === 409),
+    `test API ${action} control failed`);
+}
+
 test('verify-bootstrap checks an existing probe and reports failures in an isolated test database',
   { timeout: 240_000 }, async t => {
     const ownedEnvironment = process.env.HANDOFF_TEST_PROJECT
@@ -77,6 +88,8 @@ test('verify-bootstrap checks an existing probe and reports failures in an isola
     const absentId = randomUUID();
     const storedValue = `probe-secret-${randomUUID()}`;
     const wrongValue = `wrong-secret-${randomUUID()}`;
+    const apiControlUrl = ownedEnvironment?.apiControlUrl ?? env.HANDOFF_TEST_CONTROL_URL;
+    const apiControlToken = ownedEnvironment?.apiControlToken ?? env.HANDOFF_TEST_CONTROL_TOKEN;
     let client;
     let config;
     let databaseStopped = false;
@@ -122,6 +135,23 @@ test('verify-bootstrap checks an existing probe and reports failures in an isola
         assertCheckResult(result.output, 'probe|검증[ -]?자료|저장값', probeFailure,
           'missing probe must report a failed stored-probe check');
         assert.equal(await readProbe(client, absentId), null);
+      });
+
+      await t.test('API outage keeps the database and probe healthy while the service fails', async () => {
+        try {
+          await controlApi(apiControlUrl, apiControlToken, 'stop');
+          const result = runVerify(env, ['--id', id, '--value', storedValue], storedValue);
+          assert.equal(result.status, 1);
+          assertCheckResult(result.output, 'service|서비스', databaseFailure,
+            'stopped API must fail the service check');
+          assertCheckResult(result.output, 'database|db|저장소', successState,
+            'direct database read must report a healthy database');
+          assertCheckResult(result.output, 'probe|검증[ -]?자료|저장값', successState,
+            'stored probe must still match while the API is stopped');
+        } finally {
+          await controlApi(apiControlUrl, apiControlToken, 'start');
+        }
+        assert.equal(runVerify(env, ['--id', id, '--value', storedValue], storedValue).status, 0);
       });
 
       await t.test('database outage exits 1 and names the failed database check', async () => {
