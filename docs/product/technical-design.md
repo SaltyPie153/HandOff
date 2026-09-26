@@ -1,6 +1,6 @@
 # HandOff 기술 설계 및 운영 결정
 
-상태: 대화에서 확정한 결정 반영 · 앱 구현 및 배포 전
+상태: 기술·운영 결정 반영 · 로컬 앱 기본 골격 구현 중 · 업무 기능 및 운영 배포 전
 
 제품 동작의 원본은 [제품 명세](spec.md)이며, 이 문서는 선택한 기술과 운영 조건을 정리한다. 구현되지 않은 설정이나 연동을 동작한다고 간주하지 않는다.
 
@@ -22,17 +22,18 @@
 | Codex | 연결 방식과 권한 검증 후 연동. 방식 자체는 아직 미확정 |
 | Discord 알림 | 프로젝트별 요청·회신 알림. 소셜 로그인과 별개로 설정 |
 
-앱 기본 골격의 버전 계열·개발 도구는 [구현 계획](../../specs/001-app-bootstrap/plan.md)과 [조사 기록](../../specs/001-app-bootstrap/research.md)에서 선정했다. npm workspaces, Vite, MUI Material/Emotion을 사용한다. 정확한 패치와 이미지 digest는 실제 설치 전 호환성을 검증하여 고정한다. Prisma 선택만으로 계약 동시 처리·중복 방지가 보장되지는 않으며 제품 명세의 상태 검증과 DB 제약·트랜잭션으로 구현한다.
+앱 기본 골격의 근거는 [구현 계획](../../specs/001-app-bootstrap/plan.md)과 [조사 기록](../../specs/001-app-bootstrap/research.md)이다. npm workspaces, Vite, MUI Material/Emotion을 사용한다. 현재 저장소의 `.node-version`은 Node.js 24.21.0, `package.json`의 엔진 범위는 `>=24.15 <25`, 패키지 관리자는 npm 10.9.2다. 로컬 검증 기록의 번들 Node.js 24.19.0도 이 범위 안이다. 루트·각 workspace의 `package.json`과 `package-lock.json`은 React 19.3.0, Vite 8.3.0, NestJS 12.0.3, Prisma CLI/client/adapter 7.10.0, TypeScript 5.9.3, MUI Material 9.4.0, Vitest 5.0.1, Playwright 1.63.0을 고정한다. `compose.dev.yml`과 `compose.test.yml`의 DB는 `postgres:17.11-bookworm` 및 digest `sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`로 고정했다. 이는 개발·시험 구성이다. Prisma 선택만으로 계약 동시 처리·중복 방지가 보장되지는 않으며 제품 명세의 상태 검증과 DB 제약·트랜잭션으로 구현한다.
 
 ## 2. 개발 및 운영 환경
 
 ### 개발
 
-- React·NestJS는 개발자 PC에서 실행한다.
-- PostgreSQL은 Docker 컨테이너로 실행한다.
+- React·NestJS는 개발자 PC에서 실행한다. 현재 루트 `npm run dev:web`과 `npm run dev:api`가 각각 loopback 웹·API를 시작한다.
+- PostgreSQL은 Docker 컨테이너로 실행한다. 개발 DB는 `npm run db:up`/`npm run db:down`으로 관리하며 named volume을 유지한다.
 - 개발용 DB·첨부·계정 설정은 운영 환경과 분리한다.
-- CI의 통합 검증도 운영 DB를 사용하지 않는다.
-- 이 문서는 실행할 npm 명령이나 Compose 서비스가 이미 존재한다는 뜻이 아니다. 구현할 때 실제 설정과 함께 실행 명령을 등록한다.
+- `npm run test:integration`은 `handoff-foundation-*` 전용 Compose 프로젝트·volume에서 빈 시험 DB migration을 먼저 확인하고, `handoff-test-*` 전용 fixture에서 통합 검사를 수행한다. `npm run test:e2e`는 `handoff-test-*` fixture를 사용한다. 두 프로젝트는 각자 만든 시험 자원의 정리를 시도하며 실패를 보고한다. 시험 포트는 loopback 5433/3001/5174이고 기존 `handoff-dev` DB를 내리지 않는다. CI 자체는 아직 구성되지 않았다.
+- 웹 상태 화면과 `GET /api/health/ready`는 개발 DB 연결·BootstrapProbe 스키마 상태를 확인한다. `npm run probe -- create --id <UUID> --value <TEXT>`, `npm run probe -- verify --id <UUID> --value <TEXT>`, `npm run probe -- cleanup --id <UUID>`, `npm run verify:bootstrap -- --id <UUID> --value <TEXT>`는 개발·시험 전용 도구다. 수동으로 호출하면 현재 개발 DB의 자료를 다루므로 DB 소유권을 먼저 확인한다. 자동 보존·장애 검증은 [Quickstart](../../specs/001-app-bootstrap/quickstart.md)의 격리 시험 명령을 사용한다.
+- `pwsh -NoProfile -File scripts/check-harness.ps1` 기본 실행은 문서 검사만 하며 `PRODUCT: NOT_RUN`을 출력한다. `-RequireProduct` 또는 `scripts/check-product.ps1` 직접 실행은 build, typecheck, test, test:integration, test:e2e를 순서대로 실행하고 실패 코드를 전달한다. 이 제품 검사는 앱 기본 골격 범위이며 [R01~R25](../harness/checks.md)의 업무 기능 완료가 아니다.
 
 ### 운영
 
@@ -99,7 +100,7 @@ Cloud Storage: DB·첨부 백업, 7일 보관
 
 ## 6. 기능 구현 순서 제안
 
-아래는 의존성을 설명하는 순서이며 아직 세부 구현 계획이나 실행 명령은 아니다.
+아래는 의존성을 설명하는 순서다. 1단계의 로컬 골격과 검사 명령은 마련됐지만 팀원 재현 및 최종 검증이 남아 있다. 2~7단계는 후속 범위다.
 
 1. 버전·패키지 관리·폴더 구조 확정, 로컬 PostgreSQL Compose와 제품 검증 진입점 구성.
 2. 회원·제공자 계정·가입 승인·최초 관리자, API 인증 기반 구현.
@@ -109,13 +110,13 @@ Cloud Storage: DB·첨부 백업, 7일 보관
 6. Discord 알림과 재시도, Codex 연결 가능성 검증 및 검증된 연동 구현.
 7. 운영 Compose·백업·복구·OAuth 운영 설정, develop 통합 테스트 후 main 최종 반영과 배포.
 
-각 기능은 `develop` 기반 `feature/<기능명>`에서 작업하고 `develop` 통합 테스트를 거쳐 `main`에 최종 병합한다. 이번 문서 브랜치는 아직 develop에 병합되지 않은 Harness 커밋을 선행 변경으로 포함한다. 문서 반영이 앱 구현이나 병합·배포를 의미하지 않는다.
+각 기능은 `develop` 기반 `feature/<기능명>`에서 작업하고 `develop` 통합 테스트를 거쳐 `main`에 최종 병합한다. 현재 `feature/app-bootstrap`에는 로컬 웹·API·DB 골격과 검증 도구가 구현돼 있다. 이 브랜치는 아직 `develop`에 병합되지 않았고 운영 배포도 하지 않았다.
 
 ## 7. 남은 확인 사항
 
 | 시점 | 질문 또는 기술 검증 대상 |
 |---|---|
-| 앱 기본 골격 구현 전 | npm workspaces·Vite·MUI 및 버전 계열 선정 완료. 정확한 패치·peer 호환성·lockfile 검증. 라우팅은 화면 확장 시 선정 |
+| 앱 기본 골격 완료 전 | 패치와 lockfile 고정 완료. 새 사본에서 팀원 최초 실행·ready 확인, 최종 수용 검증 대기. 라우팅은 화면 확장 시 선정 |
 | 인증 구현 전 | 웹 세션 방식과 수명, 계정 연결 충돌·해제, 가입 거절·관리자 양도 정책 |
 | 첨부 구현 전 | 허용 형식·최대 용량, 보존·삭제 정책 |
 | 외부 연동 전 | Codex 인증·접속 방식, Discord 봇/웹훅과 채널 권한, 미연결 회원 알림 |
