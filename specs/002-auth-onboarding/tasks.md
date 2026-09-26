@@ -2,7 +2,7 @@
 
 **Input**: specs/002-auth-onboarding/spec.md
 **Prerequisites**: plan.md, research.md, data-model.md, contracts/auth-api.md, quickstart.md
-**Status**: 독립 정책 T001~T004 완료. 일회용 OAuth 시도 T005까지 구현·단위 검증 완료. DB·API·화면은 앱 골격 선행 조건 대기.
+**Status**: T001~T012 구현 및 자동 검증 완료. T013의 실제 Google·Discord 앱 인증과 운영 설정 검증은 자격 증명 준비 후 진행.
 
 ## Phase 1: 독립 정책과 인증 시도
 
@@ -14,18 +14,18 @@
 
 ## Phase 2: 앱 골격 통합 후 DB·API
 
-- [ ] T006 apps/api/prisma/schema.prisma와 새 migration.sql에 회원·제공자 연결·세션·시도·감사 기록 및 복합 유일 제약을 추가한다.
-- [ ] T007 [US1] apps/api/src/auth/providers/와 auth.controller.ts에 Google/Discord code 로그인 및 대기 세션을 구현하고 계약 테스트를 통과시킨다.
-- [ ] T008 [US3] apps/api/src/auth/oauth-attempt.ts의 PostgreSQL 저장소와 연결 콜백의 타인 연결 충돌을 구현·검증한다.
-- [ ] T009 [US2] apps/api/src/admin/와 scripts/bootstrap-admin.mjs에 관리자 대기 목록·승인·관리자 부여·명시적 최초 관리자 지정을 구현·검증한다.
+- [x] T006 apps/api/prisma/schema.prisma와 새 migration.sql에 회원·제공자 연결·세션·시도·감사 기록 및 복합 유일 제약을 추가한다.
+- [x] T007 [US1] apps/api/src/auth/와 auth.controller.ts에 Google/Discord code 로그인 및 대기 세션을 구현하고 계약 테스트를 통과시킨다.
+- [x] T008 [US3] apps/api/src/auth/oauth-attempt.ts의 PostgreSQL 저장소와 연결 콜백의 타인 연결 충돌을 구현·검증한다.
+- [x] T009 [US2] apps/api/src/admin/와 scripts/bootstrap-admin.mjs에 관리자 대기 목록·승인·관리자 부여·명시적 최초 관리자 지정을 구현·검증한다.
 
 ## Phase 3: 화면·통합
 
-- [ ] T010 [US1] apps/web/src/auth/LoginPage.tsx와 PendingPage.tsx에 로그인·대기 화면을 구현·검증한다.
-- [ ] T011 [US2] apps/web/src/auth/PendingUsersPage.tsx에 관리자 목록·승인 화면을 구현·검증한다.
-- [ ] T012 [US3] apps/web/src/auth/에 계정 연결·충돌 안내를 구현·검증한다.
+- [x] T010 [US1] apps/web/src/auth/LoginPage.tsx와 PendingPage.tsx에 로그인·대기 화면을 구현·검증한다.
+- [x] T011 [US2] apps/web/src/auth/PendingUsersPage.tsx에 관리자 목록·승인 화면을 구현·검증한다.
+- [x] T012 [US3] apps/web/src/auth/에 계정 연결·충돌 안내를 구현·검증한다.
 - [ ] T013 tests/e2e/auth.spec.ts와 specs/002-auth-onboarding/quickstart.md에 R20·R23·R24 종단 검증과 실제 제공자 시험 결과를 반영한다.
 
 ## Dependencies
 
-T001~T005는 현재 브랜치에서 독립 실행한다. T006~T013은 feature/app-bootstrap의 API·웹·DB 골격이 develop에 통합되거나 같은 기준으로 이 브랜치에 들어온 뒤 순서대로 진행한다. 다른 PC 작업 중인 공용 파일을 선점하지 않는다.
+feature/app-bootstrap의 API·웹·DB 골격은 feature/auth-onboarding에 병합했다. T013의 실 제공자 검증과 배포 설정은 후속이다. 사용자 승인 없이 develop/main에 병합하지 않는다.

@@ -24,7 +24,7 @@
 
 ## 아직 결정하지 않은 사항
 
-- 세션 방식과 CI/CD. 패키지 패치·빌드·UI·제품 테스트 명령 계약은 앱 기본 골격에서 고정·실행했으며 아래 최신 기록을 따른다.
+- CI/CD. 패키지 패치·빌드·UI·제품 테스트 명령 계약은 앱 기본 골격에서 고정·실행했으며 아래 최신 기록을 따른다.
 - Codex 연결 방식 검증, Discord 알림 설치·권한과 로그인 미연결 사용자 처리.
 - 도메인·GCP 프로젝트·VM 사양·최초 관리자 식별값·OAuth 앱 설정·백업 시각과 복구 절차.
 - 가입 거절·계정 연결 해제·프로젝트 관리자 양도·첨부 제한 등 [남은 확인 사항](../product/technical-design.md).
@@ -62,3 +62,11 @@
 - `feature/app-bootstrap`에서 React/MUI 웹, NestJS API, Prisma/PostgreSQL 개발 DB와 상태 진단·개발용 probe를 구현했다. 정확한 패키지 버전과 DB 이미지 digest는 package/lock 및 Compose에 고정했다.
 - 제품 검사(build·typecheck·unit·실DB 통합·E2E)와 Harness 검사는 로컬에서 종료 코드 0으로 실행했다. 실제 팀원 한 명은 지원 도구가 준비된 새 사본에서 Quickstart만으로 시작 화면의 ready를 확인했다고 보고했다. 팀원 PC 원본 로그는 별도로 읽지 않았다.
 - 기능 브랜치는 원격에 push했고 `develop` 대상 PR을 준비 중이다. 병합·운영 배포는 아직 하지 않았다. 로그인·권한·계약·첨부·외부 연동·GCP 백업과 복구는 후속 범위다.
+
+## 인증 구현 결정 — 2026-09-26
+
+- 서비스 세션은 PostgreSQL에 원문 대신 SHA-256 토큰 해시로 보관하고 7일 뒤 만료한다. 상태 변경 API는 세션에 결박된 CSRF 토큰을 요구한다. 매 보호 요청에서 현재 회원 상태를 다시 읽는다.
+- OAuth 시도는 state 해시를 10분간 보관하고 원자적으로 한 번만 소비한다. 연결 저장 직전 세션 행을 잠가 로그아웃·만료를 다시 확인한다. Google ID 토큰의 서명·발급자·대상·만료·nonce를 확인하고, Discord는 code 교환 후 `identify` 신원 조회만 사용한다. 제공자 토큰은 DB에 저장하지 않는다.
+- 로컬 OAuth callback은 웹 개발 서버의 `/api` 프록시를 통해 돌아오도록 `WEB_PORT`를 기준으로 만든다. 운영 공개 도메인과 HTTPS reverse proxy는 배포 작업에서 확정한다.
+- Prisma CLI는 루트 스크립트가 사용하므로 루트 개발 의존성으로 둔다. npm workspace의 전이 의존성 override가 적용되도록 `deepmerge-ts` 8.0.2와 `mysql2` 3.24.4를 루트에서 고정했다. 이 조합은 로컬 생성·빌드·격리 DB 검증과 `npm audit` 경고 0건으로 확인했다.
+- 인증 기능은 `feature/auth-onboarding`에서만 구현했다. 실제 Google·Discord OAuth 앱 자격 증명 시험과 운영 배포는 미완료다.

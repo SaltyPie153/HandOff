@@ -106,7 +106,7 @@ test('one probe survives three complete ordinary restarts', async ({ page }) => 
       await control(controlUrl, 'web-start');
       await waitAvailable(webUrl, true);
       webStopAttempted = false;
-      await page.goto('/');
+      await page.goto('/dev/health');
       await page.getByRole('button', { name: '상태 확인' }).click();
       await expect(page.getByRole('status')).toHaveText('준비 완료');
       await probe('verify', id, value);

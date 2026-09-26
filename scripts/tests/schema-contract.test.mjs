@@ -19,7 +19,8 @@ test('BootstrapProbe schema and migration enforce the development probe contract
   assert.match(schema, /value\s+String\s+@db\.VarChar\(128\)/);
   assert.match(schema, /createdAt\s+DateTime\s+@default\(now\(\)\)\s+@map\(['\x22]created_at['\x22]\)\s+@db\.Timestamptz\(6\)/);
   assert.match(schema, /@@map\(['\x22]bootstrap_probes['\x22]\)/);
-  assert.doesNotMatch(schema, /User|Project|Contract|Handoff/);
+  // Later migrations may add product models; the foundation migration remains probe-only.
+  assert.doesNotMatch(migration, /CREATE TABLE ["']?(users|projects|contracts|handoffs)/i);
 
   assert.match(migration, /CREATE TABLE ['\x22]?bootstrap_probes['\x22]?/);
   assert.match(migration, /['\x22]?id['\x22]? UUID NOT NULL/);
