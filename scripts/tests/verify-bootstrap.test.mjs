@@ -36,6 +36,23 @@ function runVerify(env, args, secretValue) {
   return { status: result.status, output };
 }
 
+function assertCheckResult(output, label, state, message) {
+  // A nearby state must belong to this item, not to a different item in a summary.
+  const separator = '(?:[ \\t]+(?:check|status|상태))?[ \\t:._=/-]+';
+  const start = '(?:^|[ \\t,;{\\[])';
+  const end = '(?=$|[ \\t,;}:\\]])';
+  const itemFirst = new RegExp(start + '(?:' + label + ')' + separator +
+    '(?:' + state + ')' + end, 'i');
+  const stateFirst = new RegExp(start + '(?:' + state + ')[ \\t:._=/-]+' +
+    '(?:' + label + ')' + end, 'i');
+  assert.equal(output.split(/\r?\n/).some(line => itemFirst.test(line) || stateFirst.test(line)),
+    true, message);
+}
+
+const successState = 'ok|pass(?:ed)?|ready|success(?:ful)?|match(?:ed)?|정상|성공|일치';
+const databaseFailure = 'unavailable|degraded|fail(?:ed|ure)?|error|실패|불가|오류';
+const probeFailure = 'mismatch|missing|absent|not[_ -]?found|fail(?:ed|ure)?|error|불일치|없음|누락|실패|오류';
+
 async function readProbe(client, id) {
   const result = await client.query(
     'SELECT id, value, created_at FROM bootstrap_probes WHERE id = $1::uuid', [id]
@@ -78,20 +95,20 @@ test('verify-bootstrap checks an existing probe and reports failures in an isola
       await t.test('reports service, database, and stored-probe checks with exit 0', () => {
         const result = runVerify(env, ['--id', id, '--value', storedValue], storedValue);
         assert.equal(result.status, 0);
-        assert.equal(/service|health|서비스|진단/i.test(result.output), true,
-          'success must include a service diagnosis');
-        assert.equal(/database|db|저장소/i.test(result.output), true,
-          'success must include a database diagnosis');
-        assert.equal(/probe|검증 자료|저장값/i.test(result.output), true,
-          'success must include the stored-probe result');
+        assertCheckResult(result.output, 'service|health|서비스|진단', successState,
+          'service diagnosis must report success');
+        assertCheckResult(result.output, 'database|db|저장소', successState,
+          'database diagnosis must report success');
+        assertCheckResult(result.output, 'probe|검증[ -]?자료|저장값', successState,
+          'stored-probe check must report success');
       });
 
       await t.test('mismatched stored value exits 1 and names the failed probe check', async () => {
         const before = await readProbe(client, id);
         const result = runVerify(env, ['--id', id, '--value', wrongValue], wrongValue);
         assert.equal(result.status, 1);
-        assert.equal(/probe|검증 자료|저장값/i.test(result.output), true,
-          'mismatch must identify the failed stored-probe check');
+        assertCheckResult(result.output, 'probe|검증[ -]?자료|저장값', probeFailure,
+          'mismatch must report a failed stored-probe check');
         const after = await readProbe(client, id);
         assert.equal(after?.id, before?.id);
         assert.equal(after?.value === storedValue, true, 'mismatch must not change the stored value');
@@ -102,8 +119,8 @@ test('verify-bootstrap checks an existing probe and reports failures in an isola
         assert.equal(await readProbe(client, absentId), null);
         const result = runVerify(env, ['--id', absentId, '--value', storedValue], storedValue);
         assert.equal(result.status, 1);
-        assert.equal(/probe|검증 자료|저장값/i.test(result.output), true,
-          'missing probe must identify the failed stored-probe check');
+        assertCheckResult(result.output, 'probe|검증[ -]?자료|저장값', probeFailure,
+          'missing probe must report a failed stored-probe check');
         assert.equal(await readProbe(client, absentId), null);
       });
 
@@ -115,8 +132,8 @@ test('verify-bootstrap checks an existing probe and reports failures in an isola
           await compose(env, env.HANDOFF_TEST_PROJECT, 'stop', 'db');
           const result = runVerify(env, ['--id', id, '--value', storedValue], storedValue);
           assert.equal(result.status, 1);
-          assert.equal(/database|db|저장소/i.test(result.output), true,
-            'outage must identify the failed database check');
+          assertCheckResult(result.output, 'database|db|저장소', databaseFailure,
+            'outage must report a failed database check');
 
           for (const [unsafeEnv, expected] of [
             [{ ...env, NODE_ENV: 'production' }, 'UNSAFE_ENVIRONMENT: NODE_ENV'],
