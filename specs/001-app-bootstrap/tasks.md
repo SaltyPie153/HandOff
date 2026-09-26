@@ -91,7 +91,7 @@
 
 - [X] T026 [P] [US3] scripts/tests/probe.test.mjs에 UUID/1~128자 검증, 같은 id/value 재시도, 다른 value 충돌, 누락/불일치 verify 실패, id 한 건만 cleanup, 원격/운영 DB 거부 실패 테스트를 작성한다. FR-007/009.
 - [X] T027 [P] [US3] scripts/tests/verify-bootstrap.test.mjs에 필수 --id/--value, 진단과 저장값 확인, 정상0/DB장애1/불일치1, 없는 자료 자동 생성 금지와 실패 항목 표시를 검증하는 실패 테스트를 작성한다. FR-008.
-- [ ] T028 [US3] scripts/probe.mjs와 apps/api/src/database/probe.repository.ts에 create/verify/cleanup을 구현한다. 기존 id와 같은 value는 기존 결과, 다른 값은 충돌로 반환하며 조회 실패를 갱신으로 해결하지 않는다. DB 유일 제약으로 동시 create를 처리하고 cleanup은 지정 id만 대상으로 한다.
+- [X] T028 [US3] scripts/probe.mjs와 apps/api/src/database/probe.repository.ts에 create/verify/cleanup을 구현한다. 기존 id와 같은 value는 기존 결과, 다른 값은 충돌로 반환하며 조회 실패를 갱신으로 해결하지 않는다. DB 유일 제약으로 동시 create를 처리하고 cleanup은 지정 id만 대상으로 한다.
 - [ ] T029 [US3] scripts/verify-bootstrap.mjs와 package.json에 probe/verify:bootstrap을 연결한다. T006 guard 이후 진단·지정 자료를 검사하고 성공0/실패1 및 비밀값 없는 결과를 반환한다. 도구 종료 시 DB 연결을 닫고 T026/T027을 통과시킨다.
 - [ ] T030 [US3] tests/e2e/persistence.spec.ts에 probe를 최초 한 번 생성한 뒤 웹·API 종료와 DB down/up을 포함한 일반 재시작3회 검증을 추가한다. 매회 동일 id/value를 읽고 중간 create·seed·reset·volume 삭제를 금지한다. FR-007, SC-003.
 - [ ] T031 [US3] tests/e2e/verification.spec.ts에 동일 probe의 정상0 → DB중단1(DB 실패 항목) → 복구0 순서를 검증한다. 전체 검증 후에만 해당 probe를 cleanup하고 다른 probe가 남는지 확인한다. FR-008/009, SC-004.
