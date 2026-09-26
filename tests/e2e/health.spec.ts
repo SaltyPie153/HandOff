@@ -93,7 +93,7 @@ test('real PostgreSQL outage and recovery update HTTP and browser state', async 
   let dbStopped = false;
   let failure: unknown;
   try {
-    await page.goto('/');
+    await page.goto('/dev/health');
     const initial = await request.get(healthPath);
     await assertHealth(initial, 200, 'ok');
     await check(page, '준비 완료', '정상');
@@ -132,7 +132,7 @@ test('missing real schema is degraded, guides migration, and recovers after rest
   let failure: unknown;
   try {
     await client.connect();
-    await page.goto('/');
+    await page.goto('/dev/health');
     schemaMutationAttempted = true;
     await client.query('ALTER TABLE bootstrap_probes RENAME TO bootstrap_probes_health_e2e_hidden');
     await assertHealth(await request.get(healthPath), 503, 'schema_missing');
@@ -206,7 +206,7 @@ test('stopped and slow real API connections become unavailable before a fresh AP
   let failure: unknown;
   try {
     await waitForApi(true);
-    await page.goto('/');
+    await page.goto('/dev/health');
     stopAttempted = true;
     await controlApi('stop');
     await waitForApi(false);

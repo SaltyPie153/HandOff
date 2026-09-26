@@ -1,6 +1,8 @@
 import type { ComponentType } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeEach(() => window.history.replaceState({}, '', '/dev/health'));
 
 // T013 adds the app module. Until then, assertions below fail on the absent screen.
 const appModules = import.meta.glob<{ default?: ComponentType; App?: ComponentType }>("../src/App.tsx", {

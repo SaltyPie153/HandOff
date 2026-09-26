@@ -11,6 +11,10 @@
     "node": ">=24.15 <25"
   },
   "packageManager": "npm@10.9.2",
+  "overrides": {
+    "deepmerge-ts": "8.0.2",
+    "mysql2": "3.24.4"
+  },
   "scripts": {
     "dev:init": "node scripts/dev-init.mjs",
     "db:up": "node scripts/db.mjs up",
@@ -33,6 +37,7 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@types/node": "24.13.6",
+    "prisma": "7.10.0",
     "typescript": "5.9.3"
   }
 }

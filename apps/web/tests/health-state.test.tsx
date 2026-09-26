@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeEach(() => window.history.replaceState({}, '', '/dev/health'));
 import App from "../src/App";
 
 const serverCheckedAt = "2020-01-02T03:04:05.000Z";
