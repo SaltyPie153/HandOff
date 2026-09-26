@@ -21,7 +21,7 @@ function assertIsolatedTestEnvironment(env) {
   return config;
 }
 
-function runProbe(env, action, id, value) {
+function runProbe(env, action, id, value, expectedGuard) {
   const args = [probeScript, action, '--id', id];
   if (value !== undefined) args.push('--value', value);
   const result = spawnSync(process.execPath, args, {
@@ -34,6 +34,11 @@ function runProbe(env, action, id, value) {
   assert.equal(result.stdout.includes(env.DATABASE_URL), false);
   assert.equal(result.stderr.includes(env.DATABASE_URL), false);
   assert.equal(/MODULE_NOT_FOUND/.test(result.stderr), false, 'probe CLI entrypoint must exist');
+  if (expectedGuard) {
+    const output = result.stdout + result.stderr;
+    assert.equal(output.includes(expectedGuard.code), true, 'probe must report the guard error code');
+    assert.equal(output.includes(expectedGuard.field), true, 'probe must identify the guarded setting');
+  }
   return result.status;
 }
 
@@ -98,10 +103,14 @@ test('probe CLI validates inputs and changes only its own rows in an isolated te
 
       await t.test('production and remote targets are refused before changing test data', async () => {
         const before = await readProbe(client, ids[3]);
-        assert.equal(runProbe({ ...env, NODE_ENV: 'production' }, 'create', ids[4], 'blocked'), 1);
+        assert.equal(runProbe({ ...env, NODE_ENV: 'production' }, 'create', ids[4], 'blocked', {
+          code: 'UNSAFE_ENVIRONMENT', field: 'NODE_ENV'
+        }), 1);
         assert.equal(runProbe({ ...env,
           DATABASE_URL: env.DATABASE_URL.replace('127.0.0.1', 'db.example.invalid')
-        }, 'create', ids[4], 'blocked'), 1);
+        }, 'create', ids[4], 'blocked', {
+          code: 'UNSAFE_DATABASE_HOST', field: 'DATABASE_URL'
+        }), 1);
         assert.equal(await readProbe(client, ids[4]), null);
         assert.deepEqual(await readProbe(client, ids[3]), before);
       });
