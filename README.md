@@ -4,7 +4,7 @@
 
 ## 로컬 시작
 
-Windows PowerShell 7, Node.js 24.15 이상 25 미만, npm 10.9.2, Docker Desktop(Linux 컨테이너), Git이 필요합니다. 모든 명령은 저장소 루트에서 실행합니다. 자세한 순서와 충돌 대응은 `specs/001-app-bootstrap/quickstart.md`를 보세요.
+Windows PowerShell 7, Node.js 24.15 이상 25 미만(`.node-version`: 24.21.0), npm 10.9.2, Docker Desktop(Linux 컨테이너), Git이 필요합니다. 모든 명령은 저장소 루트에서 실행합니다. 자세한 순서와 충돌 대응은 [Quickstart](specs/001-app-bootstrap/quickstart.md)를 보세요.
 
 ```powershell
 npm ci
@@ -26,9 +26,9 @@ npm run dev:api
 npm run dev:web
 ```
 
-기본 웹 주소는 http://127.0.0.1:5173 입니다. 화면에 `상태 확인` 버튼은 있지만 요청 대상인 health API가 아직 없어 `확인 불가`로 표시될 수 있습니다. 이 버튼은 DB 준비 상태 검증으로 사용할 수 없습니다.
+기본 웹 주소는 http://127.0.0.1:5173 입니다. `상태 확인`은 실제 `GET /api/health/ready` 결과를 표시합니다. `준비 완료`는 현재 개발 DB 연결과 BootstrapProbe 테이블 조회가 성공했다는 뜻이며, 가입·계약 기능이나 데이터 복구 가능성을 뜻하지 않습니다.
 
-종료할 때는 API·웹을 실행한 각 터미널에서 `Ctrl+C`를 누른 뒤, 저장소 루트의 별도 터미널에서 `npm run db:down`을 실행합니다. 개발 DB의 Docker volume은 유지됩니다.
+자신이 시작한 API·웹은 각 터미널에서 `Ctrl+C`로 종료합니다. 자신이 소유한 개발 DB만 종료할 때 `npm run db:down`을 사용하며 Docker volume은 유지됩니다. 공유 중인 DB에는 이 명령을 실행하지 마세요.
 
 ## 현재 실행 가능한 검사
 
@@ -36,14 +36,20 @@ npm run dev:web
 npm run build
 npm run typecheck
 npm test
+npm run test:integration
+npm run test:e2e
 pwsh -NoProfile -File scripts/check-harness.ps1
+pwsh -NoProfile -File scripts/test-harness.ps1
+pwsh -NoProfile -File scripts/check-product.ps1
 ```
 
-앞의 세 명령은 현재 코드의 빌드·타입·DB 비의존 테스트입니다. `check-harness.ps1`은 문서 링크 검사를 통과했지만 제품 전체 검증은 아닙니다. `test-harness.ps1`은 현재 격리 fixture가 기술 설계 문서의 링크 대상인 `specs/001-app-bootstrap` 파일을 복사하지 않아 실패합니다. 이는 제품 부트스트랩 실패를 뜻하지 않습니다.
+`npm test`는 DB 비의존 테스트입니다. `test:integration`과 `test:e2e`는 전용 `handoff-test-*` Compose 프로젝트·시험 volume을 만들고 정리합니다. 5433(DB), 3001(API), 5174(웹) 포트를 사용하므로 비어 있어야 합니다. E2E에는 동일 probe의 웹·API·DB 재시작 3회 보존과 정상→DB 장애→복구 검증, 지정 ID 정리가 포함됩니다. 실행 순서와 자원 소유 조건은 Quickstart를 따르세요.
 
-## 구현 예정
+`check-harness.ps1` 기본 실행은 문서·링크 검사만 하고 `PRODUCT: NOT_RUN`을 출력합니다. `test-harness.ps1`은 검사기의 격리 fixture를 시험합니다. `check-product.ps1`은 build → typecheck → test → test:integration → test:e2e를 실행합니다. `check-harness.ps1 -RequireProduct`도 같은 제품 실행기를 호출합니다. 성공 범위는 앱 기본 골격이며 [R01~R25](docs/harness/checks.md)의 업무·운영 검증으로 확대 해석하지 않습니다.
 
-US2/US3의 DB 상태 진단 API·화면, `npm run test:integration`, `npm run test:e2e`, `npm run verify:bootstrap`, `npm run probe -- ...`의 생성·확인·정리는 아직 사용할 수 없습니다. npm 스크립트 항목이 있어도 연결된 구현 파일과 검증 흐름은 없습니다. 로그인, 프로젝트 접근, 계약 동의, Discord·Codex 연동과 운영 배포·백업도 구현 예정입니다.
+## 후속 구현
+
+Google·Discord 로그인, 서비스 가입 승인, 프로젝트 접근, 계약 동의, 알림·Codex 연동과 운영 배포·DB/첨부 백업·복구는 구현 전입니다. 개발용 보존 시험은 운영 백업·복구 검증을 대체하지 않습니다.
 
 ## 기술과 작업 문서
 
