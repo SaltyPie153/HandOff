@@ -14,6 +14,9 @@ test('concurrent creates for one id leave one unchanged row', { timeout: 120_000
     assert.equal(config.nodeEnv, 'test');
     assert.equal(config.databaseName, 'handoff_test');
     assert.equal(config.databaseHost, '127.0.0.1');
+    assert.equal(config.dbPort, 5433);
+    const project = ownedEnvironment?.project ?? env.HANDOFF_TEST_PROJECT;
+    assert.match(project ?? '', /^handoff-test-[0-9]+-[a-f0-9]{10}$/);
     const { PrismaService } = await import('../../apps/api/dist/src/database/prisma.service.js');
     const { ProbeRepository } = await import('../../apps/api/dist/src/database/probe.repository.js');
     prisma = new PrismaService({ databaseUrl: config.databaseUrl });
