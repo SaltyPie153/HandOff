@@ -89,7 +89,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] scripts/tests/probe.test.mjs에 UUID/1~128자 검증, 같은 id/value 재시도, 다른 value 충돌, 누락/불일치 verify 실패, id 한 건만 cleanup, 원격/운영 DB 거부 실패 테스트를 작성한다. FR-007/009.
+- [X] T026 [P] [US3] scripts/tests/probe.test.mjs에 UUID/1~128자 검증, 같은 id/value 재시도, 다른 value 충돌, 누락/불일치 verify 실패, id 한 건만 cleanup, 원격/운영 DB 거부 실패 테스트를 작성한다. FR-007/009.
 - [ ] T027 [P] [US3] scripts/tests/verify-bootstrap.test.mjs에 필수 --id/--value, 진단과 저장값 확인, 정상0/DB장애1/불일치1, 없는 자료 자동 생성 금지와 실패 항목 표시를 검증하는 실패 테스트를 작성한다. FR-008.
 - [ ] T028 [US3] scripts/probe.mjs와 apps/api/src/database/probe.repository.ts에 create/verify/cleanup을 구현한다. 기존 id와 같은 value는 기존 결과, 다른 값은 충돌로 반환하며 조회 실패를 갱신으로 해결하지 않는다. DB 유일 제약으로 동시 create를 처리하고 cleanup은 지정 id만 대상으로 한다.
 - [ ] T029 [US3] scripts/verify-bootstrap.mjs와 package.json에 probe/verify:bootstrap을 연결한다. T006 guard 이후 진단·지정 자료를 검사하고 성공0/실패1 및 비밀값 없는 결과를 반환한다. 도구 종료 시 DB 연결을 닫고 T026/T027을 통과시킨다.
