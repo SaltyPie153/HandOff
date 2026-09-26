@@ -36,8 +36,8 @@ function runProbe(env, action, id, value, expectedGuard) {
   assert.equal(/MODULE_NOT_FOUND/.test(result.stderr), false, 'probe CLI entrypoint must exist');
   if (expectedGuard) {
     const output = result.stdout + result.stderr;
-    assert.equal(output.includes(expectedGuard.code), true, 'probe must report the guard error code');
-    assert.equal(output.includes(expectedGuard.field), true, 'probe must identify the guarded setting');
+    assert.equal(output.includes(`${expectedGuard.code}: ${expectedGuard.field}`), true,
+      'probe must report the exact guard diagnostic');
   }
   return result.status;
 }
@@ -96,9 +96,12 @@ test('probe CLI validates inputs and changes only its own rows in an isolated te
 
       await t.test('cleanup deletes only the selected id', async () => {
         assert.equal(runProbe(env, 'create', ids[3], 'keep'), 0);
+        const firstUntargeted = await readProbe(client, ids[0]);
+        const secondUntargeted = await readProbe(client, ids[3]);
         assert.equal(runProbe(env, 'cleanup', ids[1]), 0);
         assert.equal(await readProbe(client, ids[1]), null);
-        assert.equal((await readProbe(client, ids[3])).value, 'keep');
+        assert.deepEqual(await readProbe(client, ids[0]), firstUntargeted);
+        assert.deepEqual(await readProbe(client, ids[3]), secondUntargeted);
       });
 
       await t.test('production and remote targets are refused before changing test data', async () => {
