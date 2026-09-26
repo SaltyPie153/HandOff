@@ -15,6 +15,11 @@ const viteCli = join(root, 'apps', 'web', 'node_modules', 'vite', 'bin', 'vite.j
 const apiRoot = join(root, 'apps', 'api');
 const apiDist = join(apiRoot, 'dist');
 const builtTests = join(apiRoot, 'dist', 'tests');
+const probeTests = [
+  'probe.test.mjs',
+  'probe-concurrency.test.mjs',
+  'verify-bootstrap.test.mjs'
+].map(name => join(root, 'scripts', 'tests', name));
 const ports = [['DB_PORT', 5433], ['API_PORT', 3001], ['WEB_PORT', 5174]];
 
 function failure(label, reason) {
@@ -312,14 +317,17 @@ async function main() {
     await requireFreePorts(ports);
     console.log('INTEGRATION_TESTS: scripts/tests/database-setup.test.mjs');
     await runFoundationDatabaseTest({ signal: controller.signal });
-    environment = await createTestEnvironment({ signal: controller.signal });
+    environment = await createTestEnvironment({ withServices: true, signal: controller.signal });
     const files = await discoverIntegrationTests();
-    console.log(`INTEGRATION_TESTS: ${files.map(file => file.slice(root.length)).join(', ')}`);
-    await runCommand(process.execPath, ['--test', ...files], {
-      label: 'INTEGRATION_TEST', timeoutMs: 120_000,
-      env: { ...environment.env, HANDOFF_TEST_PROJECT: environment.project }, signal: controller.signal,
-      stdio: process.env.HANDOFF_TEST_VERBOSE === '1' ? 'inherit' : 'ignore'
-    });
+    const tests = [...files, ...probeTests];
+    const env = { ...environment.env, HANDOFF_TEST_PROJECT: environment.project };
+    for (const file of tests) {
+      console.log(`INTEGRATION_TEST: ${file.slice(root.length)}`);
+      await runCommand(process.execPath, ['--test', file], {
+        label: 'INTEGRATION_TEST', timeoutMs: 240_000, env, signal: controller.signal,
+        stdio: process.env.HANDOFF_TEST_VERBOSE === '1' ? 'inherit' : 'ignore'
+      });
+    }
   } catch (caught) {
     error = caught;
   } finally {
