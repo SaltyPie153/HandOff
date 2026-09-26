@@ -54,28 +54,35 @@ async function runCli(script: string, args: string[]) {
   }
 }
 
-async function probe(action: 'create' | 'verify' | 'cleanup', id: string, value?: string) {
+function assertNoTestSecrets(output: string, probeValues: readonly string[]) {
+  for (const secret of [process.env.POSTGRES_PASSWORD, process.env.DATABASE_URL,
+    process.env.HANDOFF_TEST_API_CONTROL_TOKEN, ...probeValues]) {
+    expect(output.includes(secret ?? ''), 'CLI output must omit test secrets').toBe(false);
+  }
+}
+
+async function probe(action: 'create' | 'verify' | 'cleanup', id: string,
+  probeValues: readonly string[], value?: string) {
   const args = [action, '--id', id];
   if (value !== undefined) args.push('--value', value);
   const result = await runCli('scripts/probe.mjs', args);
+  assertNoTestSecrets(result.output, probeValues);
   const expected = action === 'create' ? 'PROBE_CREATED' :
     action === 'verify' ? 'PROBE_VERIFIED' : 'PROBE_CLEANED';
   expect(result.code, `probe ${action} must succeed`).toBe(0);
   expect(result.output.split(/\r?\n/).includes(expected), `probe ${action} result must be safe`).toBe(true);
 }
 
-async function probeMissing(id: string, value: string) {
+async function probeMissing(id: string, value: string, probeValues: readonly string[]) {
   const result = await runCli('scripts/probe.mjs', ['verify', '--id', id, '--value', value]);
+  assertNoTestSecrets(result.output, probeValues);
   expect(result.code, 'cleaned target must be absent').toBe(1);
   expect(result.output.split(/\r?\n/).includes('PROBE_MISSING'), 'missing probe must be reported safely').toBe(true);
 }
 
-async function verify(id: string, value: string) {
+async function verify(id: string, value: string, probeValues: readonly string[]) {
   const result = await runCli('scripts/verify-bootstrap.mjs', ['--id', id, '--value', value]);
-  for (const secret of [process.env.POSTGRES_PASSWORD, process.env.DATABASE_URL,
-    process.env.HANDOFF_TEST_API_CONTROL_TOKEN, value]) {
-    expect(result.output.includes(secret ?? ''), 'verify output must omit secret values').toBe(false);
-  }
+  assertNoTestSecrets(result.output, probeValues);
   return result;
 }
 
@@ -98,6 +105,7 @@ test('verify:bootstrap reports one probe across normal, database outage, and rec
   const targetValue = randomBytes(24).toString('hex');
   const sentinelId = randomUUID();
   const sentinelValue = randomBytes(24).toString('hex');
+  const probeValues = [targetValue, sentinelValue];
   let targetAttempted = false;
   let sentinelAttempted = false;
   let dbStopAttempted = false;
@@ -105,11 +113,11 @@ test('verify:bootstrap reports one probe across normal, database outage, and rec
 
   try {
     targetAttempted = true;
-    await probe('create', targetId, targetValue);
+    await probe('create', targetId, probeValues, targetValue);
     sentinelAttempted = true;
-    await probe('create', sentinelId, sentinelValue);
+    await probe('create', sentinelId, probeValues, sentinelValue);
 
-    const normal = await verify(targetId, targetValue);
+    const normal = await verify(targetId, targetValue, probeValues);
     expect(normal.code).toBe(0);
     expect(/^DATABASE: OK$/m.test(normal.output), 'normal database item').toBe(true);
     expect(/^PROBE: OK$/m.test(normal.output), 'normal probe item').toBe(true);
@@ -117,22 +125,22 @@ test('verify:bootstrap reports one probe across normal, database outage, and rec
 
     dbStopAttempted = true;
     await compose(project, 'stop');
-    const outage = await verify(targetId, targetValue);
+    const outage = await verify(targetId, targetValue, probeValues);
     expect(outage.code).toBe(1);
     expect(/^DATABASE: FAIL$/m.test(outage.output), 'outage database failure item').toBe(true);
     console.log(`VERIFY_SEQUENCE_OUTAGE: EXIT_${outage.code} DATABASE_FAIL`);
 
     await compose(project, 'start');
-    const recovery = await verify(targetId, targetValue);
+    const recovery = await verify(targetId, targetValue, probeValues);
     expect(recovery.code).toBe(0);
     expect(/^DATABASE: OK$/m.test(recovery.output), 'recovered database item').toBe(true);
     expect(/^PROBE: OK$/m.test(recovery.output), 'same stored probe after recovery').toBe(true);
     console.log(`VERIFY_SEQUENCE_RECOVERY: EXIT_${recovery.code}`);
 
-    await probe('cleanup', targetId);
-    await probeMissing(targetId, targetValue);
+    await probe('cleanup', targetId, probeValues);
+    await probeMissing(targetId, targetValue, probeValues);
     targetAttempted = false;
-    await probe('verify', sentinelId, sentinelValue);
+    await probe('verify', sentinelId, probeValues, sentinelValue);
     console.log('VERIFY_SEQUENCE_CLEANUP: TARGET_MISSING SENTINEL_VERIFIED');
   } catch (error) { failures.push(error); }
   finally {
@@ -142,15 +150,15 @@ test('verify:bootstrap reports one probe across normal, database outage, and rec
     }
     if (targetAttempted) {
       try {
-        await probe('cleanup', targetId);
-        await probeMissing(targetId, targetValue);
+        await probe('cleanup', targetId, probeValues);
+        await probeMissing(targetId, targetValue, probeValues);
       }
       catch (error) { failures.push(error); }
     }
     if (sentinelAttempted) {
       try {
-        await probe('cleanup', sentinelId);
-        await probeMissing(sentinelId, sentinelValue);
+        await probe('cleanup', sentinelId, probeValues);
+        await probeMissing(sentinelId, sentinelValue, probeValues);
         console.log('VERIFY_SEQUENCE_FINAL_CLEANUP: SENTINEL_MISSING');
       }
       catch (error) { failures.push(error); }
