@@ -3,3 +3,14 @@
 .env.*
 !.env.example
 *.log
+/node_modules/
+**/node_modules/
+**/dist/
+**/build/
+/apps/api/src/generated/
+/coverage/
+/test-results/
+/playwright-report/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
