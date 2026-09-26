@@ -263,18 +263,29 @@ export async function createTestEnvironment({ withServices = false, signal } = {
       let api = launch(process.execPath, [join(apiRoot, 'dist', 'src', 'main.js')], { env });
       steps.push(['api', async () => { if (api) await stopChild(api); }]);
       await waitReady(`http://${host}:3001/api/health/ready`, 'API', api, signal);
-      const web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
-      steps.push(['web', () => stopChild(web)]);
+      let web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
+      steps.push(['web', async () => { if (web) await stopChild(web); }]);
       await waitReady(`http://${host}:5174/`, 'WEB', web, signal);
       apiControlToken = randomBytes(24).toString('hex');
       const control = createHttpServer((request, response) => {
         if (request.method !== 'POST' || request.headers['x-test-control-token'] !== apiControlToken ||
-            !['/stop', '/start'].includes(request.url ?? '')) {
+            !['/stop', '/start', '/web-stop', '/web-start'].includes(request.url ?? '')) {
           response.writeHead(404).end();
           return;
         }
         void (async () => {
-          if (request.url === '/stop') {
+          if (request.url === '/web-stop') {
+            if (web) await stopChild(web);
+            web = undefined;
+          } else if (request.url === '/web-start') {
+            if (web && childIsRunning(web.child)) {
+              response.writeHead(409).end();
+              return;
+            }
+            if (web) await stopChild(web);
+            web = launch(process.execPath, [viteCli, 'apps/web', '--host', host], { env });
+            await waitReady(`http://${host}:5174/`, 'WEB', web, signal);
+          } else if (request.url === '/stop') {
             if (api) await stopChild(api);
             api = undefined;
           } else {
