@@ -54,17 +54,20 @@ async function checkHealth(apiPort) {
 
 async function checkProbe(databaseUrl, id, value) {
   let prisma;
+  let outcome = { database: false, probe: 'FAIL', cleanup: true };
   try {
     const { PrismaService } = await import('../apps/api/dist/src/database/prisma.service.js');
     const { ProbeRepository } = await import('../apps/api/dist/src/database/probe.repository.js');
     prisma = new PrismaService({ databaseUrl });
     const result = await new ProbeRepository(prisma).verify(id, value);
-    return { database: true, probe: result === 'verified' ? 'OK' : result.toUpperCase() };
+    outcome = { database: true, probe: result === 'verified' ? 'OK' : result.toUpperCase(), cleanup: true };
   } catch {
-    return { database: false, probe: 'FAIL' };
+    // The result remains a safe failure without exposing a database exception.
   } finally {
-    await prisma?.$disconnect();
+    try { await prisma?.$disconnect(); }
+    catch { outcome.cleanup = false; }
   }
+  return outcome;
 }
 
 async function run() {
@@ -74,12 +77,14 @@ async function run() {
     : await loadConfig(envPath, process.env);
   const health = await checkHealth(config.apiPort);
   const stored = await checkProbe(config.databaseUrl, id, value);
-  const database = health.database && stored.database;
   console.log(`SERVICE: ${health.service ? 'OK' : 'FAIL'}`);
-  console.log(`DATABASE: ${database ? 'OK' : 'FAIL'}`);
+  console.log(`HEALTH: ${health.database ? 'OK' : 'FAIL'}`);
+  console.log(`DATABASE: ${stored.database ? 'OK' : 'FAIL'}`);
   console.log(`PROBE: ${stored.probe}`);
+  if (!stored.cleanup) console.log('CONNECTION_CLEANUP: FAIL');
   console.log(`CHECKED_AT: ${new Date().toISOString()}`);
-  if (!health.service || !database || stored.probe !== 'OK') process.exitCode = 1;
+  if (!health.service || !health.database || !stored.database ||
+      stored.probe !== 'OK' || !stored.cleanup) process.exitCode = 1;
 }
 
 try {
