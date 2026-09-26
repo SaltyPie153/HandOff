@@ -78,7 +78,7 @@
 - [X] T022 [US2] apps/web/src/health/useHealth.ts와 apps/web/src/health/HealthPanel.tsx에 AbortController·증가 requestId·최신 결과만 반영·10초 제한을 구현한다. MUI 상태 표시/재확인/조치 안내, 텍스트와 aria-live를 제공하고 App.tsx에 연결한다. T019를 통과시킨다.
 - [X] T023 [US2] tests/e2e/fixtures/environment.ts와 playwright.config.ts에 별도 시험 project/volume/포트·API/웹 기동·유한 대기·자기 프로세스 정리를 구성한다. scripts/test-integration.mjs와 package.json에 test:integration/test:e2e 진입점을 연결한다. test:integration은 scripts/tests/database-setup.test.mjs와 apps/api/tests의 health 계약·통합 테스트를 실제 시험 DB에서 실행한다. 루트 test의 scripts/tests 단위 테스트 포함 여부와 각 실행기의 테스트 발견 목록을 확인하고, finally 정리 실패를 성공으로 숨기지 않는다.
 - [X] T024 [US2] tests/e2e/health.spec.ts와 apps/api/tests/health.integration.test.ts에서 실DB 정상·중단·복구·빈 스키마, API 중단·느린 응답, 반복 timeout 후 연결 누적 부재를 검증한다. 화면 10초/서버5초/DB2초 제한을 구분해 기록한다. FR-004/005, SC-002.
-- [ ] T025 [US2] tests/e2e/secret-redaction.spec.ts에 시험 비밀번호·토큰·전체 연결 문자열을 주입한 실패 시나리오를 추가하고 화면·로그·클라이언트 산출물에 노출 0건임을 확인한다. 정상/장애/복구 결과와 함께 work/001-app-bootstrap/us2.md에 비밀값 없이 기록한다. FR-006/010, SC-005.
+- [X] T025 [US2] tests/e2e/secret-redaction.spec.ts에 시험 비밀번호·토큰·전체 연결 문자열을 주입한 실패 시나리오를 추가하고 화면·로그·클라이언트 산출물에 노출 0건임을 확인한다. 정상/장애/복구 결과와 함께 work/001-app-bootstrap/us2.md에 비밀값 없이 기록한다. FR-006/010, SC-005.
 
 **Checkpoint**: 화면에서 실제 상태를 확인할 수 있다. probe 쓰기·보존 검증은 아직 없다.
 
