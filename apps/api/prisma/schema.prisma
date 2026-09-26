@@ -15,3 +15,102 @@ model BootstrapProbe {
 
   @@map("bootstrap_probes")
 }
+
+enum MemberStatus {
+  PENDING
+  APPROVED
+}
+
+enum IdentityProvider {
+  GOOGLE
+  DISCORD
+}
+
+enum AttemptIntent {
+  LOGIN
+  LINK
+}
+
+model User {
+  id             String       @id @default(uuid()) @db.Uuid
+  status         MemberStatus @default(PENDING)
+  isServiceAdmin Boolean      @default(false) @map("is_service_admin")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  approvedAt     DateTime?    @map("approved_at") @db.Timestamptz(6)
+  identities     ProviderIdentity[]
+  sessions       AuthSession[]
+  oauthAttempts  OAuthAttempt[]
+  approvals      MembershipApproval[] @relation("ApprovedUser")
+  approvalsMade  MembershipApproval[] @relation("ApprovalActor")
+  grants         AdminGrant[] @relation("GrantedUser")
+  grantsMade     AdminGrant[] @relation("GrantActor")
+
+  @@map("users")
+}
+
+model ProviderIdentity {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        IdentityProvider
+  providerSubject String           @map("provider_subject") @db.VarChar(255)
+  displayName     String?          @map("display_name") @db.VarChar(255)
+  email           String?          @db.VarChar(320)
+  linkedAt        DateTime         @default(now()) @map("linked_at") @db.Timestamptz(6)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("provider_identities")
+}
+
+model AuthSession {
+  tokenHash String   @id @map("token_hash") @db.Char(64)
+  csrfHash  String   @map("csrf_hash") @db.Char(64)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model OAuthAttempt {
+  stateHash        String           @id @map("state_hash") @db.Char(64)
+  provider         IdentityProvider
+  intent           AttemptIntent
+  browserSessionId String           @map("browser_session_id") @db.VarChar(64)
+  memberId         String?          @map("member_id") @db.Uuid
+  member           User?            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @map("created_at") @db.Timestamptz(6)
+  expiresAt        DateTime         @map("expires_at") @db.Timestamptz(6)
+  nonce            String?          @db.VarChar(64)
+  codeVerifier     String?          @map("code_verifier") @db.VarChar(128)
+
+  @@index([expiresAt])
+  @@map("oauth_attempts")
+}
+
+model MembershipApproval {
+  id         String   @id @default(uuid()) @db.Uuid
+  targetId   String   @unique @map("target_id") @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  target     User     @relation("ApprovedUser", fields: [targetId], references: [id])
+  actor      User     @relation("ApprovalActor", fields: [actorId], references: [id])
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz(6)
+
+  @@map("membership_approvals")
+}
+
+model AdminGrant {
+  id        String   @id @default(uuid()) @db.Uuid
+  targetId  String   @unique @map("target_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  target    User     @relation("GrantedUser", fields: [targetId], references: [id])
+  actor     User?    @relation("GrantActor", fields: [actorId], references: [id])
+  source    String   @db.VarChar(16)
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  @@map("admin_grants")
+}

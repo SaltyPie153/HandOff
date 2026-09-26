@@ -185,7 +185,7 @@ test('normal, invalid settings, failed DB login, DB outage and recovery reveal n
   try {
     expect((await request.get('/api/health/ready')).status()).toBe(200);
     web = startOwned('web', viteEntry, ['--host', '127.0.0.1'], webRoot, testEnv);
-    const webUrl = `http://127.0.0.1:${webPort}/`;
+    const webUrl = `http://127.0.0.1:${webPort}/dev/health`;
     await waitFor(webUrl, 200);
     await page.goto(webUrl);
     await screenState(page, '준비 완료', secrets, records);
