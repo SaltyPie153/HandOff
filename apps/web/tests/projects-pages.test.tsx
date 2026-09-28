@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { ProjectSelectPage } from '../src/projects/ProjectSelectPage';
 import { ProjectRoomPage } from '../src/projects/ProjectRoomPage';
 import { AdminProjectsPage } from '../src/projects/AdminProjectsPage';
+import { ProjectMembersPage } from '../src/projects/ProjectMembersPage';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState({}, '', '/'); });
 
@@ -64,4 +65,38 @@ it('keeps pending members away from project routes', async () => {
   render(<App />);
   await waitFor(() => expect(screen.getByRole('heading', { name: /가입 승인 대기/ })).toBeVisible());
   expect(screen.queryByRole('heading', { name: '프로젝트 선택' })).not.toBeInTheDocument();
+});
+
+it('shows stable member IDs when two approved candidates have the same display name', async () => {
+  const first = '4d09a865-b11d-45bd-a0bc-8917cd12be52';
+  const second = '8ad49771-43e1-4ee1-ae68-3d38fcf519da';
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => Promise.resolve(new Response(JSON.stringify(
+    url.endsWith('/members') ? [] : [{ id: first, displayName: '동명이인' }, { id: second, displayName: '동명이인' }]
+  ), { status: 200 }))));
+  render(<ProjectMembersPage id={room.id} isServiceAdmin={false} />);
+  expect(await screen.findByText(`회원 ID: ${first}`)).toBeVisible();
+  expect(screen.getByText(`회원 ID: ${second}`)).toBeVisible();
+  expect(screen.getAllByText('동명이인')).toHaveLength(2);
+});
+
+it('keeps the newest candidate search when an older response arrives last', async () => {
+  let finishA!: (response: Response) => void;
+  let finishB!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+    if (url.endsWith('/members')) return Promise.resolve(new Response('[]', { status: 200 }));
+    if (url.endsWith('query=A')) return new Promise<Response>(resolve => { finishA = resolve; });
+    if (url.endsWith('query=B')) return new Promise<Response>(resolve => { finishB = resolve; });
+    return Promise.resolve(new Response('[]', { status: 200 }));
+  }));
+  render(<ProjectMembersPage id={room.id} isServiceAdmin={false} />);
+  await screen.findByRole('heading', { name: '현재 멤버' });
+  fireEvent.change(screen.getByRole('textbox', { name: '회원 이름 검색' }), { target: { value: 'A' } });
+  fireEvent.click(screen.getByRole('button', { name: '검색' }));
+  fireEvent.change(screen.getByRole('textbox', { name: '회원 이름 검색' }), { target: { value: 'B' } });
+  fireEvent.click(screen.getByRole('button', { name: '검색' }));
+  finishB(new Response(JSON.stringify([{ id: '8ad49771-43e1-4ee1-ae68-3d38fcf519da', displayName: '최근 결과' }]), { status: 200 }));
+  expect(await screen.findByText('최근 결과')).toBeVisible();
+  await act(async () => { finishA(new Response(JSON.stringify([{ id: '4d09a865-b11d-45bd-a0bc-8917cd12be52', displayName: '이전 결과' }]), { status: 200 })); });
+  expect(screen.queryByText('이전 결과')).not.toBeInTheDocument();
+  expect(screen.getByText('최근 결과')).toBeVisible();
 });

@@ -72,14 +72,14 @@ test('two members share one room only while assigned; service admin manages with
     await other.goto('/projects');
     await expect(other.getByRole('link', { name: '계약 공유 룸' })).toBeVisible();
     await owner.goto(`/projects/${projectId}/members`);
-    await owner.getByText(/시험 팀원 · 멤버/).locator('..').getByRole('button', { name: '제외' }).click();
+    await owner.getByRole('listitem').filter({ hasText: '시험 팀원 · 멤버' }).getByRole('button', { name: '제외' }).click();
     await expect(owner.getByText(/시험 팀원 · 멤버/)).not.toBeVisible();
     await member.goto('/projects');
     await expect(member.getByRole('link', { name: '계약 공유 룸' })).not.toBeVisible();
     await member.goto(`/projects/${projectId}`);
     await expect(member.getByRole('alert')).toContainText('접근 권한이 없습니다');
   } finally {
-    for (const context of contexts) await context.close();
+    await Promise.allSettled(contexts.map(context => context.close()));
     if (projectId) await client.query('DELETE FROM projects WHERE id = $1', [projectId]);
     await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
     await client.end();
