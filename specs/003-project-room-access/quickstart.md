@@ -3,8 +3,8 @@
 ## 준비
 
 - Node.js `>=24.15 <25`, npm 10.9.2, Docker Desktop의 Linux engine을 준비한다.
-- 저장소 루트에서 `npm ci`, `npm run db:up`, `npm run db:migrate`, `npm run dev:api`, `npm run dev:web`을 실행한다. 기존 개발 DB의 볼륨은 초기화하지 않는다.
-- API와 웹은 각각 로컬 프로세스로 실행한다. 기본 웹 주소는 `http://127.0.0.1:5173`이다.
+- 저장소 루트에서 `npm ci` → `npm run dev:init` → `npm run db:up` → `npm run db:generate` → `npm run db:migrate` 순서로 실행한다. `dev:init`은 기존 `.env`를 보존하며, `db:generate`는 이 기능의 Prisma 모델을 API 코드에서 사용할 수 있게 한다. 기존 개발 DB의 볼륨은 초기화하지 않는다.
+- `npm run dev:api`와 `npm run dev:web`을 별도 터미널에서 실행한다. 기본 웹 주소는 `http://127.0.0.1:5173`이다.
 - 실제 가입 흐름에는 `.env`의 Google·Discord OAuth 설정과 서로 다른 시험 계정이 필요하다. 자격 증명은 화면 캡처·로그·커밋에 포함하지 않는다.
 
 ## 두 계정 수동 확인

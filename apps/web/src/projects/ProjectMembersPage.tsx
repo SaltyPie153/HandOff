@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, CircularProgress, Link, List, ListItem, Stack, TextField, Typography } from '@mui/material';
 import { addMember, loadCandidates, loadMembers, ProjectApiError, removeMember, type CandidateView, type MemberView } from './api';
 
@@ -9,21 +9,25 @@ export function ProjectMembersPage({ id, isServiceAdmin }: { id: string; isServi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [denied, setDenied] = useState(false);
+  const latestRequest = useRef(0);
   const refresh = useCallback(async (search = '') => {
+    const request = ++latestRequest.current;
     setCandidates([]);
     try {
       const [nextMembers, nextCandidates] = await Promise.all([loadMembers(id), loadCandidates(id, search)]);
+      if (request !== latestRequest.current) return;
       setMembers(nextMembers);
       setCandidates(nextCandidates);
       setDenied(false);
     } catch (cause) {
+      if (request !== latestRequest.current) return;
       setMembers(null);
       setCandidates([]);
       if (cause instanceof ProjectApiError && [403, 404].includes(cause.status)) setDenied(true);
       else setError(true);
     }
   }, [id]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return () => { latestRequest.current++; }; }, [refresh]);
   async function changeMember(userId: string, action: 'add' | 'remove') {
     setBusy(true);
     setError(false);
@@ -45,7 +49,8 @@ export function ProjectMembersPage({ id, isServiceAdmin }: { id: string; isServi
     {members && <>
       <Typography component="h2" variant="h6">현재 멤버</Typography>
       <List>{members.map(member => <ListItem key={member.userId} sx={{ gap: 2 }}>
-        <Typography>{member.displayName ?? member.userId} · {member.role === 'MANAGER' ? '관리 담당자' : '멤버'}</Typography>
+        <Stack><Typography>{member.displayName ?? '이름 없음'} · {member.role === 'MANAGER' ? '관리 담당자' : '멤버'}</Typography>
+          <Typography variant="caption" color="text.secondary">회원 ID: {member.userId}</Typography></Stack>
         {member.role === 'MEMBER' && <Button disabled={busy} onClick={() => void changeMember(member.userId, 'remove')}>제외</Button>}
       </ListItem>)}</List>
       <Typography component="h2" variant="h6">승인 회원 추가</Typography>
@@ -53,7 +58,8 @@ export function ProjectMembersPage({ id, isServiceAdmin }: { id: string; isServi
       <Button disabled={busy} onClick={() => void refresh(query)}>검색</Button>
       {candidates.length === 0 && <Typography>추가할 수 있는 회원이 없습니다.</Typography>}
       <List>{candidates.map(candidate => <ListItem key={candidate.id} sx={{ gap: 2 }}>
-        <Typography>{candidate.displayName ?? candidate.id}</Typography>
+        <Stack><Typography>{candidate.displayName ?? '이름 없음'}</Typography>
+          <Typography variant="caption" color="text.secondary">회원 ID: {candidate.id}</Typography></Stack>
         <Button disabled={busy} onClick={() => void changeMember(candidate.id, 'add')}>추가</Button>
       </ListItem>)}</List>
     </>}
