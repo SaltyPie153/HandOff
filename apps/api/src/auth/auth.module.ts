@@ -15,7 +15,8 @@ export class AuthModule {
         { provide: PrismaService, useFactory: () => new PrismaService({ databaseUrl: config.databaseUrl }) },
         { provide: AuthRepository, useFactory: (prisma: PrismaService) => new AuthRepository(prisma), inject: [PrismaService] },
         { provide: AuthService, useFactory: (repo: AuthRepository) => new AuthService(repo, config), inject: [AuthRepository] }
-      ]
+      ],
+      exports: [PrismaService, AuthService]
     };
   }
 }
