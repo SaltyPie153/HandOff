@@ -10,6 +10,7 @@ export function ProjectMembersPage({ id, isServiceAdmin }: { id: string; isServi
   const [error, setError] = useState(false);
   const [denied, setDenied] = useState(false);
   const refresh = useCallback(async (search = '') => {
+    setCandidates([]);
     try {
       const [nextMembers, nextCandidates] = await Promise.all([loadMembers(id), loadCandidates(id, search)]);
       setMembers(nextMembers);

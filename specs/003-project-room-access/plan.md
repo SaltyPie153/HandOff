@@ -42,19 +42,19 @@
 - Produces `new ProjectRepository(prisma: PrismaService)` and `createProject(actorId: string, input: { name: string; description: string | null }): Promise<ProjectView>`.
 - `Project` has UUID ID, trimmed name (1~120자), optional description (최대 500자), creator, creation time. `ProjectMembership` uses `(projectId,userId)` as unique active membership key and role. `ProjectMemberEvent` records `ADD | REMOVE`, target, actor, timestamp; creator registration emits one ADD event.
 
-- [ ] **Step 1: Write the failing integration test** `approved creator gets project, MANAGER membership and one ADD event; pending creator and invalid name leave all three counts unchanged` in `projects.integration.test.ts`.
+- [x] **Step 1: Write the failing integration test** `approved creator gets project, MANAGER membership and one ADD event; pending creator and invalid name leave all three counts unchanged` in `projects.integration.test.ts`.
 
   ```ts
   assert.equal(created.role, 'MANAGER');
   assert.equal(await prisma.projectMembership.count({ where: { projectId: created.id } }), 1);
   assert.equal(await prisma.projectMemberEvent.count({ where: { projectId: created.id, action: 'ADD' } }), 1);
   ```
-- [ ] **Step 2: Run `npm run test:integration`** and confirm the new test or compilation fails before the migration/repository exists.
-- [ ] **Step 3: Add the three models and migration** with the fields, uniqueness and name constraint in the Interfaces block.
-- [ ] **Step 4: Implement `ProjectRepository.createProject`**. Trim/validate inputs; recheck actor `APPROVED` inside one transaction; create project, manager membership and ADD event together.
-- [ ] **Step 5: Run `npm run db:generate`**; expect Prisma generation to succeed.
-- [ ] **Step 6: Run `npm run test:integration`**; expect the creation and rejection cases to pass against an isolated migrated DB.
-- [ ] **Step 7: Commit only Task 1 files** with message `feat(projects): add project creation and membership storage`.
+- [x] **Step 2: Run `npm run test:integration`** and confirm the new test or compilation fails before the migration/repository exists.
+- [x] **Step 3: Add the three models and migration** with the fields, uniqueness and name constraint in the Interfaces block.
+- [x] **Step 4: Implement `ProjectRepository.createProject`**. Trim/validate inputs; recheck actor `APPROVED` inside one transaction; create project, manager membership and ADD event together.
+- [x] **Step 5: Run `npm run db:generate`**; expect Prisma generation to succeed.
+- [x] **Step 6: Run `npm run test:integration`**; expect the creation and rejection cases to pass against an isolated migrated DB.
+- [x] **Step 7: Commit only Task 1 files** with message `feat(projects): add project creation and membership storage`.
 
 ### Task 2: 프로젝트 선택과 룸 읽기 경계
 
@@ -73,19 +73,19 @@
 - HTTP integration tests reuse the existing `request(path, token?, method = 'GET', csrf?)` helper shape from `auth.integration.test.ts`.
 - `AuthModule` exports `AuthService` and `PrismaService`. `ProjectModule.register(config)` imports `AuthModule.register(config)` and provides project classes; `AppModule.register` imports `ProjectModule` in place of the direct `AuthModule` import, retaining existing auth routes once.
 
-- [ ] **Step 1: Write failing HTTP integration tests**: anonymous 401, pending create/list/room 403, approved create 201 and own list 200, guessed other-project room 404, unassigned service admin room 404. Assert `Cache-Control: no-store` for private reads.
+- [x] **Step 1: Write failing HTTP integration tests**: anonymous 401, pending create/list/room 403, approved create 201 and own list 200, guessed other-project room 404, unassigned service admin room 404. Assert `Cache-Control: no-store` for private reads.
 
   ```ts
   assert.equal((await request('/api/projects', pendingToken)).status, 403);
   assert.equal((await request(`/api/projects/${otherId}`, memberToken)).status, 404);
   assert.equal((await request(`/api/projects/${otherId}`, adminToken)).status, 404);
   ```
-- [ ] **Step 2: Run `npm run test:integration`**; confirm project routes or assertions fail.
-- [ ] **Step 3: Add repository reads and `ProjectService.create/listMine/room`**. Re-read current approval and membership for every read; do not grant room access from the service-admin flag.
-- [ ] **Step 4: Add `ProjectController` and module wiring**. Validate unknown JSON types and UUIDs; use `AuthService.requireSession`/`requireAction` and `requireCsrf` on mutations.
-- [ ] **Step 5: Run `npm run test:integration`**; expect all project and existing auth HTTP cases to pass.
-- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
-- [ ] **Step 7: Commit only Task 2 files** with message `feat(projects): enforce project room access`.
+- [x] **Step 2: Run `npm run test:integration`**; confirm project routes or assertions fail.
+- [x] **Step 3: Add repository reads and `ProjectService.create/listMine/room`**. Re-read current approval and membership for every read; do not grant room access from the service-admin flag.
+- [x] **Step 4: Add `ProjectController` and module wiring**. Validate unknown JSON types and UUIDs; use `AuthService.requireSession`/`requireAction` and `requireCsrf` on mutations.
+- [x] **Step 5: Run `npm run test:integration`**; expect all project and existing auth HTTP cases to pass.
+- [x] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [x] **Step 7: Commit only Task 2 files** with message `feat(projects): enforce project room access`.
 
 ### Task 3: 멤버 배정·제외와 서비스 관리자 관리 보기
 
@@ -104,19 +104,19 @@
 - `GET /api/projects/:id/members`, `GET /api/projects/:id/eligible-users?query=`, `POST /api/projects/:id/members` with `{ userId }`, and `DELETE /api/projects/:id/members/:userId` support management. `GET /api/admin/projects` returns project ID/name/description/member count for service admins, without room content. Mutations require CSRF.
 - Unknown or unassigned project IDs return 404 to nonadmins; an assigned ordinary member's management attempt returns 403. Manager removal returns 409.
 
-- [ ] **Step 1: Write failing integration tests** for own manager and unassigned service admin add/remove, pending target rejection, cross-project manager and ordinary member rejection, missing CSRF, parallel duplicate adds (one active row/ADD event), repeated remove (one REMOVE event), manager removal conflict, and actor approval/role changes before mutation. Seed one member with both provider identities and verify its two sessions see the same project and one membership.
+- [x] **Step 1: Write failing integration tests** for own manager and unassigned service admin add/remove, pending target rejection, cross-project manager and ordinary member rejection, missing CSRF, parallel duplicate adds (one active row/ADD event), repeated remove (one REMOVE event), manager removal conflict, and actor approval/role changes before mutation. Seed one member with both provider identities and verify its two sessions see the same project and one membership.
 
   ```ts
   assert.equal(await prisma.projectMembership.count({ where: { projectId, userId: targetId } }), 1);
   assert.equal(await prisma.projectMemberEvent.count({ where: { projectId, targetId, action: 'ADD' } }), 1);
   assert.equal((await request(managerMemberUrl, adminToken, 'DELETE', adminCsrf)).status, 409);
   ```
-- [ ] **Step 2: Run `npm run test:integration`**; confirm missing routes/behavior fail.
-- [ ] **Step 3: Implement repository membership reads and transactions**. Keep `(projectId,userId)` uniqueness as the race arbiter and emit an event only for a successful state change.
-- [ ] **Step 4: Add service methods and management controllers**. Candidate lookup returns approved nonmembers with minimal display data; service-admin listing exposes no room body.
-- [ ] **Step 5: Run `npm run test:integration`**; expect the role matrix, audit counts and existing auth cases to pass.
-- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
-- [ ] **Step 7: Commit only Task 3 files** with message `feat(projects): manage approved project members`.
+- [x] **Step 2: Run `npm run test:integration`**; confirm missing routes/behavior fail.
+- [x] **Step 3: Implement repository membership reads and transactions**. Keep `(projectId,userId)` uniqueness as the race arbiter and emit an event only for a successful state change.
+- [x] **Step 4: Add service methods and management controllers**. Candidate lookup returns approved nonmembers with minimal display data; service-admin listing exposes no room body.
+- [x] **Step 5: Run `npm run test:integration`**; expect the role matrix, audit counts and existing auth cases to pass.
+- [x] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [x] **Step 7: Commit only Task 3 files** with message `feat(projects): manage approved project members`.
 
 ### Task 4: 프로젝트 선택·빈 룸·멤버 관리 화면
 
@@ -133,20 +133,20 @@
 - `projects/api.ts` exports typed `ProjectView`/`MemberView` (JSON times are ISO strings), `loadMine()`, `createProject(name, description)`, `loadRoom(id)`, `loadMembers(id)`, `loadCandidates(id, query)`, `addMember(id,userId)`, `removeMember(id,userId)`, `loadAdminProjects()`. Mutations send the existing `ho_csrf` value; fetches keep same-origin credentials.
 - Routes: `/projects` selection/creation, `/projects/:id` empty room with member roster, `/projects/:id/members` own-manager controls, `/admin/projects` service-admin assignment view. Keep `/login`, `/pending`, `/settings`, `/admin/pending`, `/dev/health` behavior.
 
-- [ ] **Step 1: Write failing Vitest cases** for empty list/create guidance, disabled repeat-submit during creation, successful creation and room entry, admin-unassigned assignment view without room link, pending redirect, and 403/404 after membership loss clearing prior room data.
+- [x] **Step 1: Write failing Vitest cases** for empty list/create guidance, disabled repeat-submit during creation, successful creation and room entry, admin-unassigned assignment view without room link, pending redirect, and 403/404 after membership loss clearing prior room data.
 
   ```tsx
   expect(screen.getByRole('heading', { name: '프로젝트 선택' })).toBeVisible();
   expect(screen.getByRole('button', { name: '프로젝트 만들기' })).toBeDisabled(); // 요청 진행 중
   expect(screen.queryByText('이전 룸 멤버 현황')).not.toBeInTheDocument(); // 접근 상실 후
   ```
-- [ ] **Step 2: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; confirm new assertions fail.
-- [ ] **Step 3: Implement `projects/api.ts`** with typed response parsing and CSRF on member mutations.
-- [ ] **Step 4: Implement four pages and `App` path dispatch** using existing MUI conventions. Show loading/error/empty states; on denied room fetch, return to `/projects` with an access-lost message.
-- [ ] **Step 5: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; expect the new and existing auth screens to pass.
-- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
-- [ ] **Step 7: Run `npm run build`**; expect API and web builds to pass.
-- [ ] **Step 8: Commit only Task 4 files** with message `feat(web): add project selection and membership screens`.
+- [x] **Step 2: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; confirm new assertions fail.
+- [x] **Step 3: Implement `projects/api.ts`** with typed response parsing and CSRF on member mutations.
+- [x] **Step 4: Implement four pages and `App` path dispatch** using existing MUI conventions. Show loading/error/empty states; on denied room fetch, return to `/projects` with an access-lost message.
+- [x] **Step 5: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; expect the new and existing auth screens to pass.
+- [x] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [x] **Step 7: Run `npm run build`**; expect API and web builds to pass.
+- [x] **Step 8: Commit only Task 4 files** with message `feat(web): add project selection and membership screens`.
 
 ### Task 5: 두 사용자 종단 검증과 문서 동기화
 
@@ -161,24 +161,32 @@
 - E2E uses the existing isolated PostgreSQL/Chromium fixture and seeds approved/pending users plus sessions as `tests/e2e/auth.spec.ts` does; it cleans only its own rows.
 - Quickstart documents migration and two-account project create → assign → room enter → remove → denied path, with no secrets.
 
-- [ ] **Step 1: Add the Playwright flow**: manager creates a room, approved second member sees it only after assignment, both see the same roster, unassigned admin can assign but cannot enter, and removed member loses access on next request. Include direct URL and pending-user denials.
+- [x] **Step 1: Add the Playwright flow**: manager creates a room, approved second member sees it only after assignment, both see the same roster, unassigned admin can assign but cannot enter, and removed member loses access on next request. Include direct URL and pending-user denials.
 
   ```ts
   await expect(memberPage.getByText(projectName)).toBeVisible();
   await expect(removedMemberPage.getByText(projectName)).not.toBeVisible();
   await expect(unassignedAdminPage.getByText('접근 권한이 없습니다')).toBeVisible();
   ```
-- [ ] **Step 2: Run `npm run test:e2e -- tests/e2e/projects.spec.ts`**; expect the full flow to pass after Tasks 1~4. If it fails, record the exact step and symptom.
-- [ ] **Step 3: Resolve any E2E-exposed feature defect** in its owning API or web file, then rerun the focused E2E test.
-- [ ] **Step 4: Update quickstart and coverage documentation** for R20~R23 and stale implementation-stage wording. Do not mark future content/attachment checks complete or change product rules.
-- [ ] **Step 5: Run `pwsh -NoProfile -File scripts/check-product.ps1` under Node 24/Docker**; record exit code, E2E count and migration result.
-- [ ] **Step 6: Run `pwsh -NoProfile -File scripts/check-harness.ps1`**; record exit code.
-- [ ] **Step 7: Run `pwsh -NoProfile -File scripts/test-harness.ps1`**; record exit code.
-- [ ] **Step 8: Record manual acceptance status in `work/003-project-room-access/resume.md`**. With Google·Discord 시험 자격 증명, check the same member's project list through both logins; otherwise mark SC-005 live login unverified. Record the 4~5-person usability check as verified or pending.
-- [ ] **Step 9: Commit Task 5 files** with message `test(projects): verify project room access end to end`.
+- [x] **Step 2: Run `npm run test:e2e -- tests/e2e/projects.spec.ts`**; expect the full flow to pass after Tasks 1~4. If it fails, record the exact step and symptom.
+- [x] **Step 3: Resolve any E2E-exposed feature defect** in its owning API or web file, then rerun the focused E2E test.
+- [x] **Step 4: Update quickstart and coverage documentation** for R20~R23 and stale implementation-stage wording. Do not mark future content/attachment checks complete or change product rules.
+- [x] **Step 5: Run `pwsh -NoProfile -File scripts/check-product.ps1` under Node 24/Docker**; record exit code, E2E count and migration result.
+- [x] **Step 6: Run `pwsh -NoProfile -File scripts/check-harness.ps1`**; record exit code.
+- [x] **Step 7: Run `pwsh -NoProfile -File scripts/test-harness.ps1`**; record exit code.
+- [x] **Step 8: Record manual acceptance status in `work/003-project-room-access/resume.md`**. With Google·Discord 시험 자격 증명, check the same member's project list through both logins; otherwise mark SC-005 live login unverified. Record the 4~5-person usability check as verified or pending.
+- [x] **Step 9: Commit Task 5 files** with message `test(projects): verify project room access end to end`.
 
 ## Completion Boundary
 
 - Product completion requires the FR-001~FR-012 role matrix and SC-001~SC-005 to have observed evidence; automated E2E cannot alone certify the 4~5-person usability criterion.
 - The team-shared handoff/contract list, drafts, attachments and versioned agreements remain the next feature. Project-room permission checks from this plan become their server-side prerequisite.
 - Coverage: Task 1 covers FR-001/002/011; Task 2 covers FR-003/004/007; Task 3 covers FR-005~011; Task 4 covers the visible flows of FR-003/006/012; Task 5 checks the combined SC-001~005 flows and records manual gaps.
+
+## 실행 기록 (2026-09-28)
+
+- Node.js 24.19.0과 Docker Desktop 29.6.1의 격리 PostgreSQL에서 `npm run db:generate`, `npm run test:integration`, `npm run typecheck`, `npm run build`가 종료 코드 0으로 완료됐다.
+- 웹 전용 테스트는 5/5, 프로젝트 두 사용자 Playwright 테스트는 1/1 통과했다. `scripts/check-product.ps1`은 빌드→타입→단위→통합→전체 E2E(8/8)를 실행해 `PRODUCT: PASS`를 반환했다.
+- `scripts/check-harness.ps1`은 14개 파일·37개 링크 검사 exit 0, `scripts/test-harness.ps1`은 18개 시나리오 exit 0이었다.
+- 최초 통합 시도는 Docker Desktop 중지로 시험 DB 준비가 실패했다. Docker 시작 후 통과했다. 첫 E2E는 후보 검색 전 목록의 중복 버튼 선택 문제로 실패했고, 검색 시작 시 이전 후보를 비우고 대상 행을 지정한 뒤 통과했다.
+- 실제 Google·Discord 재로그인 각각의 프로젝트 목록 조회(SC-005 실계정 부분)와 4~5명 팀 사용성 검사는 아직 하지 않았다. 기존 인증 흐름의 실계정 검증을 이번 프로젝트 룸의 실계정 검증으로 대체하지 않는다.

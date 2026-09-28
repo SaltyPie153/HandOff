@@ -1,6 +1,6 @@
 # HandOff 기술 설계 및 운영 결정
 
-상태: 기술·운영 결정 반영 · 로컬 앱 기본 골격 구현 중 · 업무 기능 및 운영 배포 전
+상태: 기술·운영 결정 반영 · 로컬 인증과 프로젝트 룸 권한 구현 · 인수인계·계약 본문 및 운영 배포 전
 
 제품 동작의 원본은 [제품 명세](spec.md)이며, 이 문서는 선택한 기술과 운영 조건을 정리한다. 구현되지 않은 설정이나 연동을 동작한다고 간주하지 않는다.
 
@@ -31,9 +31,9 @@
 - React·NestJS는 개발자 PC에서 실행한다. 현재 루트 `npm run dev:web`과 `npm run dev:api`가 각각 loopback 웹·API를 시작한다.
 - PostgreSQL은 Docker 컨테이너로 실행한다. 개발 DB는 `npm run db:up`/`npm run db:down`으로 관리하며 named volume을 유지한다.
 - 개발용 DB·첨부·계정 설정은 운영 환경과 분리한다.
-- `npm run test:integration`은 `handoff-foundation-*` 전용 Compose 프로젝트·volume에서 빈 시험 DB migration을 먼저 확인하고, `handoff-test-*` 전용 fixture에서 통합 검사를 수행한다. `npm run test:e2e`는 `handoff-test-*` fixture를 사용한다. 두 프로젝트는 각자 만든 시험 자원의 정리를 시도하며 실패를 보고한다. 시험 포트는 loopback 5433/3001/5174이고 기존 `handoff-dev` DB를 내리지 않는다. CI 자체는 아직 구성되지 않았다.
+- `npm run test:integration`은 `handoff-foundation-*` 전용 Compose 프로젝트·volume에서 빈 시험 DB migration을 먼저 확인하고, `handoff-test-*` 전용 fixture에서 인증·프로젝트 권한 통합 검사를 수행한다. `npm run test:e2e`는 `handoff-test-*` fixture에서 두 사용자 프로젝트 룸 흐름을 확인한다. 두 프로젝트는 각자 만든 시험 자원의 정리를 시도하며 실패를 보고한다. 시험 포트는 loopback 5433/3001/5174이고 기존 `handoff-dev` DB를 내리지 않는다. CI 자체는 아직 구성되지 않았다.
 - 웹 상태 화면과 `GET /api/health/ready`는 개발 DB 연결·BootstrapProbe 스키마 상태를 확인한다. `npm run probe -- create --id <UUID> --value <TEXT>`, `npm run probe -- verify --id <UUID> --value <TEXT>`, `npm run probe -- cleanup --id <UUID>`, `npm run verify:bootstrap -- --id <UUID> --value <TEXT>`는 개발·시험 전용 도구다. 수동으로 호출하면 현재 개발 DB의 자료를 다루므로 DB 소유권을 먼저 확인한다. 자동 보존·장애 검증은 [Quickstart](../../specs/001-app-bootstrap/quickstart.md)의 격리 시험 명령을 사용한다.
-- `pwsh -NoProfile -File scripts/check-harness.ps1` 기본 실행은 문서 검사만 하며 `PRODUCT: NOT_RUN`을 출력한다. `-RequireProduct` 또는 `scripts/check-product.ps1` 직접 실행은 build, typecheck, test, test:integration, test:e2e를 순서대로 실행하고 실패 코드를 전달한다. 이 제품 검사는 앱 기본 골격 범위이며 [R01~R25](../harness/checks.md)의 업무 기능 완료가 아니다.
+- `pwsh -NoProfile -File scripts/check-harness.ps1` 기본 실행은 문서 검사만 하며 `PRODUCT: NOT_RUN`을 출력한다. `-RequireProduct` 또는 `scripts/check-product.ps1` 직접 실행은 build, typecheck, test, test:integration, test:e2e를 순서대로 실행하고 실패 코드를 전달한다. 이 제품 검사는 구현된 인증·프로젝트 룸 권한 범위까지 확인하며 [R01~R25](../harness/checks.md) 전체 업무 기능 완료가 아니다.
 
 ### 운영
 
@@ -87,7 +87,7 @@ Cloud Storage: DB·첨부 백업, 7일 보관
 
 프로젝트 멤버 관리 권한과 계약 동의 권한은 별개다. 관리자가 다른 담당자의 확인을 대신할 수 없다. 멤버 제외로 미완료 요청 담당자가 접근 권한을 잃으면 제품 명세의 담당자 변경 필요·관리 종료 절차를 따른다.
 
-프로젝트 관리 담당자의 추가 지정·양도, 마지막 관리자 제거 방지, 가입 거절·계정 비활성화 및 재가입 처리는 추가 결정 대상이다. 승인되지 않은 자동 승격이나 임의 계정 복구를 구현하지 않는다.
+프로젝트 관리 담당자의 추가 지정·양도와 관리 담당자 제외 정책, 가입 거절·계정 비활성화 및 재가입 처리는 추가 결정 대상이다. 현재 구현은 관리 담당자 제외를 거부해 관리자 없는 프로젝트를 만들지 않는다. 승인되지 않은 자동 승격이나 임의 계정 복구를 구현하지 않는다.
 
 ## 5. 백업 정책과 복구 검증
 
