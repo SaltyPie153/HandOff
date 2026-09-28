@@ -16,15 +16,18 @@ export class HandoffRepository {
   }
 
   async createRequest(senderId: string, projectId: string, input: {
-    recipientId: string; publicTitle: string; privateBody: string; idempotencyKey: string
+    recipientId: string; publicTitle: string; privateBody: string; verificationClaim?: string | null; idempotencyKey: string
   }) {
     const publicTitle = typeof input.publicTitle === 'string' ? input.publicTitle.trim() : '';
     const privateBody = typeof input.privateBody === 'string' ? input.privateBody.trim() : '';
+    const verificationClaim = input.verificationClaim == null ? null :
+      typeof input.verificationClaim === 'string' ? input.verificationClaim.trim() : '';
     if (!publicTitle || publicTitle.length > 160 || !privateBody || privateBody.length > 50_000 ||
+        (verificationClaim !== null && (!verificationClaim || verificationClaim.length > 500)) ||
         !input.idempotencyKey || input.idempotencyKey.length > 128 || senderId === input.recipientId) {
       throw new BadRequestException('Invalid handoff request');
     }
-    const payloadHash = hash({ projectId, recipientId: input.recipientId, publicTitle, privateBody });
+    const payloadHash = hash({ projectId, recipientId: input.recipientId, publicTitle, privateBody, verificationClaim });
     const perform = () => this.prisma.$transaction(async tx => {
       await this.requireMember(senderId, projectId, tx);
       await this.requireMember(input.recipientId, projectId, tx);
@@ -36,7 +39,7 @@ export class HandoffRepository {
       return tx.handoffRequest.create({ data: {
         id: randomUUID(), projectId, senderId, recipientId: input.recipientId, publicTitle,
         sendKey: input.idempotencyKey, payloadHash,
-        versions: { create: { id: randomUUID(), version: 1, privateBody } },
+        versions: { create: { id: randomUUID(), version: 1, privateBody, verificationClaim } },
         job: { create: { updatedAt: new Date() } }
       } });
     });
@@ -74,7 +77,7 @@ export class HandoffRepository {
   async getPrivateRequest(viewerId: string, requestId: string) {
     const request = await this.prisma.handoffRequest.findUnique({ where: { id: requestId },
       select: { id: true, projectId: true, senderId: true, recipientId: true, publicTitle: true, createdAt: true,
-        versions: { select: { id: true, version: true, privateBody: true, createdAt: true }, orderBy: { version: 'desc' }, take: 1 },
+        versions: { select: { id: true, version: true, privateBody: true, verificationClaim: true, createdAt: true }, orderBy: { version: 'desc' }, take: 1 },
         job: { select: { status: true, reviewReason: true, reviewDraft: true } },
         replies: { select: { id: true, actorId: true, body: true, source: true, createdAt: true }, orderBy: { createdAt: 'asc' } } } });
     if (!request) throw new NotFoundException();
@@ -83,7 +86,8 @@ export class HandoffRepository {
     return {
       id: request.id, projectId: request.projectId, publicTitle: request.publicTitle,
       senderId: request.senderId, recipientId: request.recipientId, createdAt: request.createdAt,
-      version: request.versions[0]?.version ?? 0, privateBody: request.versions[0]?.privateBody ?? '', replies: request.replies,
+      version: request.versions[0]?.version ?? 0, privateBody: request.versions[0]?.privateBody ?? '',
+      verificationClaim: request.versions[0]?.verificationClaim ?? null, replies: request.replies,
       job: viewerId === request.recipientId ? request.job : request.job && { status: request.job.status }
     };
   }

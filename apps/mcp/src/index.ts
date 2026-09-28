@@ -19,7 +19,9 @@ export function createServer(client: HandoffApiClient) {
     description: 'Send a private handoff request to one member. Only the title is shared with the project team. Reuse the same idempotencyKey on retries.',
     inputSchema: z.object({
       projectId: z.uuid(), recipientId: z.uuid(), publicTitle: z.string().min(1).max(160),
-      privateBody: z.string().min(1).max(50_000), idempotencyKey: z.string().min(1).max(128)
+      privateBody: z.string().min(1).max(50_000),
+      verificationClaim: z.string().min(1).max(500).optional(),
+      idempotencyKey: z.string().min(1).max(128)
     })
   }, async input => safe(() => client.sendRequest(input)));
   server.registerTool('list_my_projects', {

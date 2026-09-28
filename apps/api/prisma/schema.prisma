@@ -53,6 +53,11 @@ enum HandoffJobStatus {
   COMPLETED
 }
 
+enum EvidenceKind {
+  LOCAL
+  GITHUB
+}
+
 model User {
   id             String       @id @default(uuid()) @db.Uuid
   status         MemberStatus @default(PENDING)
@@ -74,6 +79,7 @@ model User {
   receivedHandoffs HandoffRequest[] @relation("HandoffRecipient")
   handoffReplies HandoffReply[]
   mcpGrants McpGrant[]
+  evidenceSources EvidenceSource[]
 
   @@map("users")
 }
@@ -89,6 +95,7 @@ model Project {
   memberEvents ProjectMemberEvent[]
   handoffRequests HandoffRequest[]
   mcpGrants McpGrant[]
+  evidenceSources EvidenceSource[]
 
   @@map("projects")
 }
@@ -215,6 +222,7 @@ model HandoffVersion {
   requestId String @map("request_id") @db.Uuid
   version Int
   privateBody String @map("private_body") @db.Text
+  verificationClaim String? @map("verification_claim") @db.VarChar(500)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
@@ -267,4 +275,36 @@ model McpGrant {
 
   @@index([userId, projectId])
   @@map("mcp_grants")
+}
+
+model EvidenceSource {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  kind EvidenceKind
+  localPath String? @map("local_path") @db.VarChar(1024)
+  githubOwner String? @map("github_owner") @db.VarChar(100)
+  githubRepo String? @map("github_repo") @db.VarChar(100)
+  githubPath String? @map("github_path") @db.VarChar(1024)
+  githubRef String? @map("github_ref") @db.VarChar(255)
+  syncTokenHash String? @unique @map("sync_token_hash") @db.Char(64)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner User @relation(fields: [ownerId], references: [id])
+  snapshot EvidenceSnapshot?
+
+  @@index([ownerId, projectId])
+  @@map("evidence_sources")
+}
+
+model EvidenceSnapshot {
+  sourceId String @id @map("source_id") @db.Uuid
+  encryptedContent String @map("encrypted_content") @db.Text
+  contentHash String @map("content_hash") @db.Char(64)
+  syncedAt DateTime @map("synced_at") @db.Timestamptz(6)
+  dirtyAt DateTime? @map("dirty_at") @db.Timestamptz(6)
+  source EvidenceSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@map("evidence_snapshots")
 }
