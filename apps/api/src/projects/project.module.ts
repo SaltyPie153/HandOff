@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { ApiConfig } from '../app.module.js';
 import { ProjectController } from './project.controller.js';
+import { ProjectAdminController } from './project-admin.controller.js';
 import { ProjectRepository } from './project.repository.js';
 import { ProjectService } from './project.service.js';
 
@@ -12,7 +13,7 @@ export class ProjectModule {
     return {
       module: ProjectModule,
       imports: [AuthModule.register(config)],
-      controllers: [ProjectController],
+      controllers: [ProjectController, ProjectAdminController],
       providers: [
         { provide: ProjectRepository, useFactory: (prisma: PrismaService) => new ProjectRepository(prisma), inject: [PrismaService] },
         { provide: ProjectService, useFactory: (repository: ProjectRepository) => new ProjectService(repository), inject: [ProjectRepository] }
