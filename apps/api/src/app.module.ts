@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { HealthModule } from './health/health.module.js';
 import { ProjectModule } from './projects/project.module.js';
 import { HandoffModule } from './handoff/handoff.module.js';
+import { EvidenceModule } from './evidence/evidence.module.js';
 
 export type ApiConfig = {
   nodeEnv: string;
@@ -20,7 +21,8 @@ export class AppModule {
   static register(config: ApiConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [HealthModule.register({ databaseUrl: config.databaseUrl }), ProjectModule.register(config), HandoffModule.register(config)],
+      imports: [HealthModule.register({ databaseUrl: config.databaseUrl }), ProjectModule.register(config),
+        HandoffModule.register(config), EvidenceModule.register(config)],
       exports: [HealthModule]
     };
   }

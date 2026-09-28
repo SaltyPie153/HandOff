@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppModule, type ApiConfig } from './app.module.js';
@@ -35,7 +36,8 @@ async function closeApp(app: INestApplication): Promise<void> {
 }
 
 export async function startApi(config: ApiConfig): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.register(config), { logger: false, abortOnError: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config), { logger: false, abortOnError: false });
+  app.useBodyParser('json', { limit: '256kb' });
   try {
     await app.listen(config.apiPort, host);
     return app;

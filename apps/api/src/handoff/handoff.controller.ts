@@ -102,6 +102,7 @@ export class HandoffMcpController {
     const grant = await this.grants.requireToken(bearer(req), projectId);
     return this.handoffs.createRequest(grant.userId, projectId, {
       recipientId, publicTitle: string(body, 'publicTitle', 160), privateBody: string(body, 'privateBody', 50_000),
+      verificationClaim: body.verificationClaim === undefined ? null : string(body, 'verificationClaim', 500),
       idempotencyKey: string(body, 'idempotencyKey', 128)
     }).then(({ id, publicTitle, createdAt }) => ({ id, publicTitle, createdAt }));
   }

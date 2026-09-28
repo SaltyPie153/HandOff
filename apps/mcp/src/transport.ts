@@ -3,6 +3,7 @@ export type SendRequest = {
   recipientId: string;
   publicTitle: string;
   privateBody: string;
+  verificationClaim?: string;
   idempotencyKey: string;
 };
 
