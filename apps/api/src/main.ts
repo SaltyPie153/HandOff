@@ -1,9 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppModule, type ApiConfig } from './app.module.js';
+import { HandoffBackgroundWorker } from './handoff/background-worker.js';
 
 const host = '127.0.0.1';
 
@@ -35,9 +37,11 @@ async function closeApp(app: INestApplication): Promise<void> {
 }
 
 export async function startApi(config: ApiConfig): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.register(config), { logger: false, abortOnError: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config), { logger: false, abortOnError: false });
+  app.useBodyParser('json', { limit: '256kb' });
   try {
     await app.listen(config.apiPort, host);
+    app.get(HandoffBackgroundWorker).start();
     return app;
   } catch (error) {
     try { await closeApp(app); } catch { /* Preserve the startup failure. */ }

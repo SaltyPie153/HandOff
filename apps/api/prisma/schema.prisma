@@ -41,6 +41,23 @@ enum ProjectMemberAction {
   REMOVE
 }
 
+enum HandoffReplySource {
+  HUMAN
+  CODEX_AUTO
+}
+
+enum HandoffJobStatus {
+  PENDING
+  PROCESSING
+  REVIEW_REQUIRED
+  COMPLETED
+}
+
+enum EvidenceKind {
+  LOCAL
+  GITHUB
+}
+
 model User {
   id             String       @id @default(uuid()) @db.Uuid
   status         MemberStatus @default(PENDING)
@@ -58,6 +75,12 @@ model User {
   projectMemberships ProjectMembership[]
   projectMemberEventsTarget ProjectMemberEvent[] @relation("ProjectEventTarget")
   projectMemberEventsActor ProjectMemberEvent[] @relation("ProjectEventActor")
+  sentHandoffs HandoffRequest[] @relation("HandoffSender")
+  receivedHandoffs HandoffRequest[] @relation("HandoffRecipient")
+  handoffReplies HandoffReply[]
+  mcpGrants McpGrant[]
+  // Requests already sent remain in the audit trail when their grant is revoked.
+  evidenceSources EvidenceSource[]
 
   @@map("users")
 }
@@ -71,6 +94,9 @@ model Project {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   memberships ProjectMembership[]
   memberEvents ProjectMemberEvent[]
+  handoffRequests HandoffRequest[]
+  mcpGrants McpGrant[]
+  evidenceSources EvidenceSource[]
 
   @@map("projects")
 }
@@ -168,4 +194,124 @@ model AdminGrant {
   grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
 
   @@map("admin_grants")
+}
+
+model HandoffRequest {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  senderId String @map("sender_id") @db.Uuid
+  recipientId String @map("recipient_id") @db.Uuid
+  grantId String? @map("grant_id") @db.Uuid
+  publicTitle String @map("public_title") @db.VarChar(160)
+  sendKey String @map("send_key") @db.VarChar(128)
+  payloadHash String @map("payload_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sender User @relation("HandoffSender", fields: [senderId], references: [id])
+  recipient User @relation("HandoffRecipient", fields: [recipientId], references: [id])
+  grant McpGrant? @relation(fields: [grantId], references: [id])
+  versions HandoffVersion[]
+  replies HandoffReply[]
+  job HandoffJob?
+
+  @@unique([senderId, sendKey])
+  @@index([projectId, createdAt])
+  @@index([recipientId, createdAt])
+  @@index([grantId])
+  @@map("handoff_requests")
+}
+
+model HandoffVersion {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  version Int
+  privateBody String @map("private_body") @db.Text
+  verificationClaim String? @map("verification_claim") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, version])
+  @@map("handoff_versions")
+}
+
+model HandoffReply {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  body String @db.Text
+  source HandoffReplySource
+  replyKey String @map("reply_key") @db.VarChar(128)
+  payloadHash String @map("payload_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@unique([requestId, actorId, replyKey])
+  @@index([requestId, createdAt])
+  @@map("handoff_replies")
+}
+
+model HandoffJob {
+  requestId String @id @map("request_id") @db.Uuid
+  status HandoffJobStatus @default(PENDING)
+  attempts Int @default(0)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+  reviewReason String? @map("review_reason") @db.VarChar(255)
+  reviewDraft String? @map("review_draft") @db.Text
+  executionId String? @map("execution_id") @db.Uuid
+  evidenceRefs Json? @map("evidence_refs") @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([status, leaseUntil])
+  @@map("handoff_jobs")
+}
+
+model McpGrant {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  tokenHash String @unique @map("token_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sentRequests HandoffRequest[]
+
+  @@index([userId, projectId])
+  @@map("mcp_grants")
+}
+
+model EvidenceSource {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  kind EvidenceKind
+  localPath String? @map("local_path") @db.VarChar(1024)
+  githubOwner String? @map("github_owner") @db.VarChar(100)
+  githubRepo String? @map("github_repo") @db.VarChar(100)
+  githubPath String? @map("github_path") @db.VarChar(1024)
+  githubRef String? @map("github_ref") @db.VarChar(255)
+  syncTokenHash String? @unique @map("sync_token_hash") @db.Char(64)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner User @relation(fields: [ownerId], references: [id])
+  snapshot EvidenceSnapshot?
+
+  @@index([ownerId, projectId])
+  @@map("evidence_sources")
+}
+
+model EvidenceSnapshot {
+  sourceId String @id @map("source_id") @db.Uuid
+  encryptedContent String @map("encrypted_content") @db.Text
+  contentHash String @map("content_hash") @db.Char(64)
+  syncedAt DateTime @map("synced_at") @db.Timestamptz(6)
+  dirtyAt DateTime? @map("dirty_at") @db.Timestamptz(6)
+  source EvidenceSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@map("evidence_snapshots")
 }

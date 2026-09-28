@@ -9,6 +9,12 @@ import { ProjectSelectPage } from './projects/ProjectSelectPage';
 import { ProjectRoomPage } from './projects/ProjectRoomPage';
 import { ProjectMembersPage } from './projects/ProjectMembersPage';
 import { AdminProjectsPage } from './projects/AdminProjectsPage';
+import { HandoffFeedPage } from './handoff/HandoffFeedPage';
+import { HandoffInboxPage } from './handoff/HandoffInboxPage';
+import { HandoffRequestPage } from './handoff/HandoffRequestPage';
+import { McpGrants } from './handoff/McpGrants';
+import { EvidenceSources } from './handoff/EvidenceSources';
+import { AgentKeySettings } from './handoff/AgentKeySettings';
 
 export default function App() {
   const health = window.location.pathname === '/dev/health';
@@ -42,7 +48,16 @@ export default function App() {
         {error === 'cancelled' ? '계정 연결이 취소되었습니다.' : '계정 연결에 실패했습니다. 다른 회원에게 연결된 계정인지 확인해 주세요.'}
       </Alert>}
       <AccountLinks linkedProviders={state.viewer.linkedProviders} />
+      <McpGrants />
+      <EvidenceSources />
+      {state.viewer.isServiceAdmin && <AgentKeySettings />}
     </Stack>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/requests\/[0-9a-f-]{36}$/i.test(path)) {
+    content = <HandoffRequestPage projectId={path.split('/')[2]} requestId={path.split('/')[4]} viewerId={state.viewer.id} />;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/feed$/i.test(path)) {
+    content = <HandoffFeedPage projectId={path.split('/')[2]} viewerId={state.viewer.id} />;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/inbox$/i.test(path)) {
+    content = <HandoffInboxPage projectId={path.split('/')[2]} viewerId={state.viewer.id} />;
   } else if (/^\/projects\/[0-9a-f-]{36}\/members$/i.test(path)) {
     content = <ProjectMembersPage id={path.split('/')[2]} isServiceAdmin={state.viewer.isServiceAdmin} />;
   } else if (/^\/projects\/[0-9a-f-]{36}$/i.test(path)) {
