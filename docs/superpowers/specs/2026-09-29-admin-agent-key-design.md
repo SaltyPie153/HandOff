@@ -3,6 +3,8 @@
 작성일: 2026-09-29
 상태: 사용자 문서 검토 승인
 
+후속 결정: 실제 자동 확인기는 Upstage `solar-pro4`를 사용하며 관리자 입력과 환경 변수는 `UPSTAGE_API_KEY`로 전환했다. 아래 OpenAI 설계는 최초 결정 이력이다. 현재 동작은 [기술 설계](../../product/technical-design.md)를 따른다.
+
 ## 목적과 범위
 
 서비스 관리자가 HandOff 웹의 `/settings`에서 서버 자동 회신용 OpenAI API 키를 등록·교체·삭제한다. 키는 API 재시작 뒤에도 유지한다. 이번 범위는 `OPENAI_API_KEY` 한 종류이며, 프로젝트별 MCP 토큰, 로컬 근거 암호화 키, GitHub 읽기 토큰의 설정 UI는 포함하지 않는다. 자동 회신의 근거·권한·공개 범위 판정 규칙은 기존 [MCP 요청 설계](2026-09-29-mcp-private-handoff-design.md)를 유지한다.
