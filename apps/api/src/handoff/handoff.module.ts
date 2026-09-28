@@ -7,6 +7,8 @@ import { HandoffProjectController, HandoffMcpController } from './handoff.contro
 import { HandoffRepository } from './handoff.repository.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { HandoffBackgroundWorker } from './background-worker.js';
+import { AgentKeyStore } from '../admin/agent-key.store.js';
+import { AgentKeyController } from '../admin/agent-key.controller.js';
 
 @Module({})
 export class HandoffModule {
@@ -14,8 +16,10 @@ export class HandoffModule {
     return {
       module: HandoffModule,
       imports: [AuthModule.register(config)],
-      controllers: [HandoffProjectController, HandoffMcpController],
+      controllers: [HandoffProjectController, HandoffMcpController, AgentKeyController],
       providers: [
+        { provide: AgentKeyStore, useFactory: () => new AgentKeyStore({ nodeEnv: config.nodeEnv,
+          secretDir: process.env.HANDOFF_SECRET_DIR, workRoot: process.cwd() }) },
         { provide: HandoffRepository, useFactory: (prisma: PrismaService) => new HandoffRepository(prisma), inject: [PrismaService] },
         { provide: McpGrantService, useFactory: (prisma: PrismaService) => new McpGrantService(prisma), inject: [PrismaService] },
         { provide: EvidenceService, useFactory: (prisma: PrismaService) => new EvidenceService(prisma), inject: [PrismaService] },
