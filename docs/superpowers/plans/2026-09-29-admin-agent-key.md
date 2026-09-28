@@ -1,5 +1,7 @@
 # 서버 Codex API 키 웹 설정 Implementation Plan
 
+후속 결정: 이 계획의 최초 OpenAI 호출은 Upstage `solar-pro4` 호출과 별도 Upstage 키 보호 파일로 전환됐다. 현재 동작은 [기술 설계](../../product/technical-design.md)를 따른다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 서비스 관리자가 웹에서 서버 자동 회신용 OpenAI API 키를 안전하게 저장·교체·사용 중지하고, 워커가 즉시 새 상태를 따르게 한다.
