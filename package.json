@@ -26,7 +26,7 @@
     "dev:api": "node --env-file=.env scripts/dev-api.mjs",
     "build": "npm run db:generate && npm run build --workspace @handoff/api && npm run build --workspace @handoff/web && npm run build --workspace @handoff/mcp",
     "typecheck": "npm run typecheck --workspace @handoff/api && npm run typecheck --workspace @handoff/web && npm run typecheck --workspace @handoff/mcp",
-    "test:scripts": "node --test scripts/tests/db-command.test.mjs scripts/tests/dev-environment.test.mjs scripts/tests/dev-process.test.mjs scripts/tests/prisma-command.test.mjs scripts/tests/schema-contract.test.mjs scripts/tests/test-runners.test.mjs",
+    "test:scripts": "node --test scripts/tests/db-command.test.mjs scripts/tests/dev-environment.test.mjs scripts/tests/dev-process.test.mjs scripts/tests/evidence-sync.test.mjs scripts/tests/prisma-command.test.mjs scripts/tests/schema-contract.test.mjs scripts/tests/test-runners.test.mjs",
     "test": "npm run test:scripts && npm run test --workspace @handoff/api && npm run test --workspace @handoff/web && npm run test --workspace @handoff/mcp",
     "test:integration": "node scripts/test-integration.mjs",
     "test:e2e": "playwright test",

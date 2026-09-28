@@ -79,6 +79,7 @@ model User {
   receivedHandoffs HandoffRequest[] @relation("HandoffRecipient")
   handoffReplies HandoffReply[]
   mcpGrants McpGrant[]
+  // Requests already sent remain in the audit trail when their grant is revoked.
   evidenceSources EvidenceSource[]
 
   @@map("users")
@@ -200,6 +201,7 @@ model HandoffRequest {
   projectId String @map("project_id") @db.Uuid
   senderId String @map("sender_id") @db.Uuid
   recipientId String @map("recipient_id") @db.Uuid
+  grantId String? @map("grant_id") @db.Uuid
   publicTitle String @map("public_title") @db.VarChar(160)
   sendKey String @map("send_key") @db.VarChar(128)
   payloadHash String @map("payload_hash") @db.Char(64)
@@ -207,6 +209,7 @@ model HandoffRequest {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sender User @relation("HandoffSender", fields: [senderId], references: [id])
   recipient User @relation("HandoffRecipient", fields: [recipientId], references: [id])
+  grant McpGrant? @relation(fields: [grantId], references: [id])
   versions HandoffVersion[]
   replies HandoffReply[]
   job HandoffJob?
@@ -214,6 +217,7 @@ model HandoffRequest {
   @@unique([senderId, sendKey])
   @@index([projectId, createdAt])
   @@index([recipientId, createdAt])
+  @@index([grantId])
   @@map("handoff_requests")
 }
 
@@ -254,6 +258,8 @@ model HandoffJob {
   leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
   reviewReason String? @map("review_reason") @db.VarChar(255)
   reviewDraft String? @map("review_draft") @db.Text
+  executionId String? @map("execution_id") @db.Uuid
+  evidenceRefs Json? @map("evidence_refs") @db.JsonB
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -272,6 +278,7 @@ model McpGrant {
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sentRequests HandoffRequest[]
 
   @@index([userId, projectId])
   @@map("mcp_grants")

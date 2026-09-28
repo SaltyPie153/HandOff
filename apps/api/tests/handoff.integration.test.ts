@@ -38,6 +38,7 @@ integrationTest('private request stays between participants while title and publ
     const reply = await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', idempotencyKey: replyKey });
     assert.equal((await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', idempotencyKey: replyKey })).id, reply.id);
     assert.equal(await prisma.handoffReply.count({ where: { requestId: first.id } }), 1);
+    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: first.id } })).status, 'COMPLETED');
     assert.equal((await handoffs.listFeed(teammateId, projectId))[0]?.replies[0]?.body, 'Implementation confirmed');
   } finally {
     if (projectId) await prisma.project.delete({ where: { id: projectId } });

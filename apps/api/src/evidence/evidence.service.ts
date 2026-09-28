@@ -25,6 +25,12 @@ export type EvidenceCollection = { records: EvidenceRecord[]; unavailable: strin
 export class EvidenceService {
   constructor(private readonly prisma: PrismaService, private readonly http: typeof fetch = fetch) {}
 
+  private async requeueReviews(ownerId: string, projectId: string) {
+    await this.prisma.handoffJob.updateMany({ where: { status: 'REVIEW_REQUIRED',
+      request: { recipientId: ownerId, projectId } },
+      data: { status: 'PENDING', reviewReason: null, reviewDraft: null } });
+  }
+
   private async requireMember(userId: string, projectId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
     if (user?.status !== 'APPROVED') throw new ForbiddenException();
@@ -39,6 +45,7 @@ export class EvidenceService {
     const source = await this.prisma.evidenceSource.create({ data: {
       id: randomUUID(), ownerId, projectId, kind: 'LOCAL', localPath: path, syncTokenHash: digest(syncToken)
     }, select: { id: true, projectId: true, localPath: true, createdAt: true } });
+    await this.requeueReviews(ownerId, projectId);
     return { ...source, syncToken };
   }
 
@@ -46,9 +53,11 @@ export class EvidenceService {
     await this.requireMember(ownerId, projectId);
     if (!safeGitPart(input.owner, 100) || input.owner.includes('/') || !safeGitPart(input.repo, 100) || input.repo.includes('/') ||
         !safeGitPart(input.path, 1024) || !safeGitPart(input.ref, 255)) throw new BadRequestException('Invalid GitHub source');
-    return this.prisma.evidenceSource.create({ data: { id: randomUUID(), ownerId, projectId, kind: 'GITHUB',
+    const source = await this.prisma.evidenceSource.create({ data: { id: randomUUID(), ownerId, projectId, kind: 'GITHUB',
       githubOwner: input.owner, githubRepo: input.repo, githubPath: input.path, githubRef: input.ref },
       select: { id: true, projectId: true, kind: true, githubOwner: true, githubRepo: true, githubPath: true, githubRef: true, createdAt: true } });
+    await this.requeueReviews(ownerId, projectId);
+    return source;
   }
 
   async list(ownerId: string, projectId: string) {
@@ -96,6 +105,7 @@ export class EvidenceService {
     await this.prisma.evidenceSnapshot.upsert({ where: { sourceId },
       create: { sourceId, encryptedContent, contentHash: contentHash.toLowerCase(), syncedAt },
       update: { encryptedContent, contentHash: contentHash.toLowerCase(), syncedAt, dirtyAt: null } });
+    await this.requeueReviews(source.ownerId, source.projectId);
     return { contentHash: contentHash.toLowerCase(), syncedAt };
   }
 

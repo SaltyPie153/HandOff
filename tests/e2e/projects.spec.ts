@@ -42,7 +42,7 @@ test('two members share one room only while assigned; service admin manages with
     await expect(projectLink).toBeVisible();
     projectId = (await projectLink.getAttribute('href'))!.split('/')[2];
     await projectLink.click();
-    await expect(owner.getByText('아직 공유된 요청이 없습니다.')).toBeVisible();
+    await expect(owner.getByRole('link', { name: '팀 인수인계 피드' })).toBeVisible();
     await expect(owner.getByText(/담당자 · 관리 담당자/)).toBeVisible();
     await member.goto('/projects');
     await expect(member.getByText(/배정된 프로젝트가 없습니다/)).toBeVisible();

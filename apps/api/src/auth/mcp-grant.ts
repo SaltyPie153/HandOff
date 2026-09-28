@@ -37,10 +37,10 @@ export class McpGrantService {
   async requireToken(token: string | undefined, projectId?: string) {
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new UnauthorizedException();
     const grant = await this.prisma.mcpGrant.findUnique({ where: { tokenHash: tokenHash(token) },
-      select: { userId: true, projectId: true, expiresAt: true, revokedAt: true } });
+      select: { id: true, userId: true, projectId: true, expiresAt: true, revokedAt: true } });
     if (!grant || grant.revokedAt || grant.expiresAt <= new Date()) throw new UnauthorizedException();
     if (projectId && grant.projectId !== projectId) throw new NotFoundException();
     await this.requireMember(grant.userId, grant.projectId);
-    return { userId: grant.userId, projectId: grant.projectId };
+    return { id: grant.id, userId: grant.userId, projectId: grant.projectId };
   }
 }

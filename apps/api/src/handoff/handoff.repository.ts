@@ -16,14 +16,15 @@ export class HandoffRepository {
   }
 
   async createRequest(senderId: string, projectId: string, input: {
-    recipientId: string; publicTitle: string; privateBody: string; verificationClaim?: string | null; idempotencyKey: string
+    recipientId: string; publicTitle: string; privateBody: string; verificationClaim?: string | null;
+    idempotencyKey: string; grantId?: string
   }) {
     const publicTitle = typeof input.publicTitle === 'string' ? input.publicTitle.trim() : '';
     const privateBody = typeof input.privateBody === 'string' ? input.privateBody.trim() : '';
     const verificationClaim = input.verificationClaim == null ? null :
       typeof input.verificationClaim === 'string' ? input.verificationClaim.trim() : '';
     if (!publicTitle || publicTitle.length > 160 || !privateBody || privateBody.length > 50_000 ||
-        (verificationClaim !== null && (!verificationClaim || verificationClaim.length > 500)) ||
+        (verificationClaim !== null && (!verificationClaim || verificationClaim.length > 500 || /[\r\n]/.test(verificationClaim))) ||
         !input.idempotencyKey || input.idempotencyKey.length > 128 || senderId === input.recipientId) {
       throw new BadRequestException('Invalid handoff request');
     }
@@ -31,13 +32,18 @@ export class HandoffRepository {
     const perform = () => this.prisma.$transaction(async tx => {
       await this.requireMember(senderId, projectId, tx);
       await this.requireMember(input.recipientId, projectId, tx);
+      if (input.grantId) {
+        const grant = await tx.mcpGrant.findFirst({ where: { id: input.grantId, userId: senderId, projectId,
+          revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } });
+        if (!grant) throw new ForbiddenException();
+      }
       const existing = await tx.handoffRequest.findUnique({ where: { senderId_sendKey: { senderId, sendKey: input.idempotencyKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException('Idempotency key already used');
         return existing;
       }
       return tx.handoffRequest.create({ data: {
-        id: randomUUID(), projectId, senderId, recipientId: input.recipientId, publicTitle,
+        id: randomUUID(), projectId, senderId, recipientId: input.recipientId, grantId: input.grantId, publicTitle,
         sendKey: input.idempotencyKey, payloadHash,
         versions: { create: { id: randomUUID(), version: 1, privateBody, verificationClaim } },
         job: { create: { updatedAt: new Date() } }
@@ -67,11 +73,13 @@ export class HandoffRepository {
 
   async listMine(viewerId: string, projectId: string) {
     await this.requireMember(viewerId, projectId, this.prisma);
-    return this.prisma.handoffRequest.findMany({
+    const requests = await this.prisma.handoffRequest.findMany({
       where: { projectId, OR: [{ senderId: viewerId }, { recipientId: viewerId }] },
       select: { id: true, publicTitle: true, senderId: true, recipientId: true, createdAt: true,
         job: { select: { status: true, reviewReason: true } } }, orderBy: { createdAt: 'desc' }
     });
+    return requests.map(request => ({ ...request,
+      job: request.recipientId === viewerId ? request.job : request.job && { status: request.job.status } }));
   }
 
   async getPrivateRequest(viewerId: string, requestId: string) {
@@ -106,10 +114,15 @@ export class HandoffRepository {
       const existing = await tx.handoffReply.findUnique({ where: { requestId_actorId_replyKey: { requestId, actorId, replyKey: input.idempotencyKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException('Idempotency key already used');
+        if (input.source === 'HUMAN') await tx.handoffJob.updateMany({ where: { requestId },
+          data: { status: 'COMPLETED', reviewReason: null, reviewDraft: null, leaseUntil: null } });
         return existing;
       }
-      return tx.handoffReply.create({ data: { id: randomUUID(), requestId, actorId, body,
+      const reply = await tx.handoffReply.create({ data: { id: randomUUID(), requestId, actorId, body,
         source: input.source, replyKey: input.idempotencyKey, payloadHash } });
+      if (input.source === 'HUMAN') await tx.handoffJob.updateMany({ where: { requestId },
+        data: { status: 'COMPLETED', reviewReason: null, reviewDraft: null, leaseUntil: null } });
+      return reply;
     });
     try { return await perform(); }
     catch (error) {

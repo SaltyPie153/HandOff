@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppModule, type ApiConfig } from './app.module.js';
+import { HandoffBackgroundWorker } from './handoff/background-worker.js';
 
 const host = '127.0.0.1';
 
@@ -40,6 +41,7 @@ export async function startApi(config: ApiConfig): Promise<INestApplication> {
   app.useBodyParser('json', { limit: '256kb' });
   try {
     await app.listen(config.apiPort, host);
+    app.get(HandoffBackgroundWorker).start();
     return app;
   } catch (error) {
     try { await closeApp(app); } catch { /* Preserve the startup failure. */ }
