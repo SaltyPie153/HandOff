@@ -50,9 +50,11 @@
   assert.equal(await prisma.projectMemberEvent.count({ where: { projectId: created.id, action: 'ADD' } }), 1);
   ```
 - [ ] **Step 2: Run `npm run test:integration`** and confirm the new test or compilation fails before the migration/repository exists.
-- [ ] **Step 3: Add the models, migration and `createProject`**. Trim/validate inputs before the transaction; recheck actor `APPROVED` inside it; create project, manager membership and event together. Reject blank/overlong values with a stable validation error.
-- [ ] **Step 4: Run `npm run db:generate` and `npm run test:integration`**; expect the creation and rejection cases to pass against an isolated migrated DB.
-- [ ] **Step 5: Commit only Task 1 files** with message `feat(projects): add project creation and membership storage`.
+- [ ] **Step 3: Add the three models and migration** with the fields, uniqueness and name constraint in the Interfaces block.
+- [ ] **Step 4: Implement `ProjectRepository.createProject`**. Trim/validate inputs; recheck actor `APPROVED` inside one transaction; create project, manager membership and ADD event together.
+- [ ] **Step 5: Run `npm run db:generate`**; expect Prisma generation to succeed.
+- [ ] **Step 6: Run `npm run test:integration`**; expect the creation and rejection cases to pass against an isolated migrated DB.
+- [ ] **Step 7: Commit only Task 1 files** with message `feat(projects): add project creation and membership storage`.
 
 ### Task 2: 프로젝트 선택과 룸 읽기 경계
 
@@ -79,9 +81,11 @@
   assert.equal((await request(`/api/projects/${otherId}`, adminToken)).status, 404);
   ```
 - [ ] **Step 2: Run `npm run test:integration`**; confirm project routes or assertions fail.
-- [ ] **Step 3: Add repository reads and the service/controller/module** with the interfaces above. Validate unknown JSON types and UUIDs; use `AuthService.requireSession`/`requireAction` and `requireCsrf` on mutations. Re-read current approval and membership for every read; do not grant room access from the service-admin flag.
-- [ ] **Step 4: Run `npm run test:integration` and `npm run typecheck`**; expect all project and existing auth HTTP cases to pass.
-- [ ] **Step 5: Commit only Task 2 files** with message `feat(projects): enforce project room access`.
+- [ ] **Step 3: Add repository reads and `ProjectService.create/listMine/room`**. Re-read current approval and membership for every read; do not grant room access from the service-admin flag.
+- [ ] **Step 4: Add `ProjectController` and module wiring**. Validate unknown JSON types and UUIDs; use `AuthService.requireSession`/`requireAction` and `requireCsrf` on mutations.
+- [ ] **Step 5: Run `npm run test:integration`**; expect all project and existing auth HTTP cases to pass.
+- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [ ] **Step 7: Commit only Task 2 files** with message `feat(projects): enforce project room access`.
 
 ### Task 3: 멤버 배정·제외와 서비스 관리자 관리 보기
 
@@ -108,9 +112,11 @@
   assert.equal((await request(managerMemberUrl, adminToken, 'DELETE', adminCsrf)).status, 409);
   ```
 - [ ] **Step 2: Run `npm run test:integration`**; confirm missing routes/behavior fail.
-- [ ] **Step 3: Implement the repository transactions and endpoints**. Keep the `(projectId,userId)` uniqueness constraint as the race arbiter; create an event only for a successful state change. Candidate lookup returns approved nonmembers with minimal display data. Service-admin listing exposes no room body.
-- [ ] **Step 4: Run `npm run test:integration` and `npm run typecheck`**; expect the role matrix, audit counts and existing auth cases to pass.
-- [ ] **Step 5: Commit only Task 3 files** with message `feat(projects): manage approved project members`.
+- [ ] **Step 3: Implement repository membership reads and transactions**. Keep `(projectId,userId)` uniqueness as the race arbiter and emit an event only for a successful state change.
+- [ ] **Step 4: Add service methods and management controllers**. Candidate lookup returns approved nonmembers with minimal display data; service-admin listing exposes no room body.
+- [ ] **Step 5: Run `npm run test:integration`**; expect the role matrix, audit counts and existing auth cases to pass.
+- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [ ] **Step 7: Commit only Task 3 files** with message `feat(projects): manage approved project members`.
 
 ### Task 4: 프로젝트 선택·빈 룸·멤버 관리 화면
 
@@ -135,9 +141,12 @@
   expect(screen.queryByText('이전 룸 멤버 현황')).not.toBeInTheDocument(); // 접근 상실 후
   ```
 - [ ] **Step 2: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; confirm new assertions fail.
-- [ ] **Step 3: Implement the API helper, four pages and `App` path dispatch** using existing MUI conventions. Show loading/error/empty states; make roster controls visible only to authorized manager/admin, while server remains the authority. On denied room fetch, return to `/projects` with a clear access-lost message.
-- [ ] **Step 4: Run the focused web test, `npm run typecheck` and `npm run build`**; expect all to pass without regressing auth screens.
-- [ ] **Step 5: Commit only Task 4 files** with message `feat(web): add project selection and membership screens`.
+- [ ] **Step 3: Implement `projects/api.ts`** with typed response parsing and CSRF on member mutations.
+- [ ] **Step 4: Implement four pages and `App` path dispatch** using existing MUI conventions. Show loading/error/empty states; on denied room fetch, return to `/projects` with an access-lost message.
+- [ ] **Step 5: Run `npm run test --workspace @handoff/web -- projects-pages.test.tsx`**; expect the new and existing auth screens to pass.
+- [ ] **Step 6: Run `npm run typecheck`**; expect both workspaces to pass.
+- [ ] **Step 7: Run `npm run build`**; expect API and web builds to pass.
+- [ ] **Step 8: Commit only Task 4 files** with message `feat(web): add project selection and membership screens`.
 
 ### Task 5: 두 사용자 종단 검증과 문서 동기화
 
@@ -160,9 +169,13 @@
   await expect(unassignedAdminPage.getByText('접근 권한이 없습니다')).toBeVisible();
   ```
 - [ ] **Step 2: Run `npm run test:e2e -- tests/e2e/projects.spec.ts`**; expect the full flow to pass after Tasks 1~4. If it fails, record the exact step and symptom.
-- [ ] **Step 3: Resolve only exposed feature defects**, then update quickstart, R20~R23 coverage in `docs/harness/checks.md`, and stale implementation-stage wording in `docs/product/technical-design.md`. Do not mark future content/attachment checks complete or change product rules.
-- [ ] **Step 4: Run `pwsh -NoProfile -File scripts/check-product.ps1`, `pwsh -NoProfile -File scripts/check-harness.ps1`, and `pwsh -NoProfile -File scripts/test-harness.ps1` under Node 24/Docker**; record each exit code, E2E count and migration result in `work/003-project-room-access/resume.md`. Google·Discord 시험 자격 증명이 준비됐다면 한 회원의 두 로그인에서 같은 프로젝트 목록을 확인한다. 그렇지 않으면 SC-005 실로그인 검증을 미확인으로 남긴다. 별도의 4~5명 사용성 확인도 검증 또는 대기로 기록한다.
-- [ ] **Step 5: Commit Task 5 files** with message `test(projects): verify project room access end to end`.
+- [ ] **Step 3: Resolve any E2E-exposed feature defect** in its owning API or web file, then rerun the focused E2E test.
+- [ ] **Step 4: Update quickstart and coverage documentation** for R20~R23 and stale implementation-stage wording. Do not mark future content/attachment checks complete or change product rules.
+- [ ] **Step 5: Run `pwsh -NoProfile -File scripts/check-product.ps1` under Node 24/Docker**; record exit code, E2E count and migration result.
+- [ ] **Step 6: Run `pwsh -NoProfile -File scripts/check-harness.ps1`**; record exit code.
+- [ ] **Step 7: Run `pwsh -NoProfile -File scripts/test-harness.ps1`**; record exit code.
+- [ ] **Step 8: Record manual acceptance status in `work/003-project-room-access/resume.md`**. With Google·Discord 시험 자격 증명, check the same member's project list through both logins; otherwise mark SC-005 live login unverified. Record the 4~5-person usability check as verified or pending.
+- [ ] **Step 9: Commit Task 5 files** with message `test(projects): verify project room access end to end`.
 
 ## Completion Boundary
 
