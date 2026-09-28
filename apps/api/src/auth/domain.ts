@@ -14,7 +14,8 @@ export type AuthAction =
   | 'READ_PROJECT'
   | 'LIST_PENDING_USERS'
   | 'APPROVE_USER'
-  | 'GRANT_ADMIN';
+  | 'GRANT_ADMIN'
+  | 'MANAGE_AGENT_KEY';
 
 export type ProviderLinkDecision =
   | { kind: 'CREATE' }
@@ -42,6 +43,7 @@ export function canPerform(
     case 'LIST_PENDING_USERS':
     case 'APPROVE_USER':
     case 'GRANT_ADMIN':
+    case 'MANAGE_AGENT_KEY':
       return member.status === 'APPROVED' && member.isServiceAdmin === true;
     default:
       return false;
