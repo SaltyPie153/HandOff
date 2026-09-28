@@ -5,6 +5,10 @@ import { PendingPage } from './auth/PendingPage';
 import { PendingUsersPage } from './auth/PendingUsersPage';
 import { AccountLinks } from './auth/AccountLinks';
 import { useViewer } from './auth/useViewer';
+import { ProjectSelectPage } from './projects/ProjectSelectPage';
+import { ProjectRoomPage } from './projects/ProjectRoomPage';
+import { ProjectMembersPage } from './projects/ProjectMembersPage';
+import { AdminProjectsPage } from './projects/AdminProjectsPage';
 
 export default function App() {
   const health = window.location.pathname === '/dev/health';
@@ -29,6 +33,8 @@ export default function App() {
     content = <PendingPage linkedProviders={state.viewer.linkedProviders} error={path === '/settings' ? error : null} />;
   } else if (path === '/admin/pending') {
     content = state.viewer.isServiceAdmin ? <PendingUsersPage /> : <Alert severity="error">관리자만 열 수 있습니다.</Alert>;
+  } else if (path === '/admin/projects') {
+    content = state.viewer.isServiceAdmin ? <AdminProjectsPage /> : <Alert severity="error">관리자만 열 수 있습니다.</Alert>;
   } else if (path === '/settings') {
     content = <Stack spacing={2}>
       <Typography component="h1" variant="h4">로그인 수단 관리</Typography>
@@ -37,13 +43,12 @@ export default function App() {
       </Alert>}
       <AccountLinks linkedProviders={state.viewer.linkedProviders} />
     </Stack>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/members$/i.test(path)) {
+    content = <ProjectMembersPage id={path.split('/')[2]} isServiceAdmin={state.viewer.isServiceAdmin} />;
+  } else if (/^\/projects\/[0-9a-f-]{36}$/i.test(path)) {
+    content = <ProjectRoomPage id={path.split('/')[2]} />;
   } else {
-    content = <Stack spacing={2}>
-      <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>프로젝트 선택</Typography>
-      <Typography color="text.secondary">아직 배정된 프로젝트 목록 기능이 없습니다.</Typography>
-      <Link href="/settings">로그인 수단 관리</Link>
-      {state.viewer.isServiceAdmin && <Link href="/admin/pending">가입 승인 대기 목록</Link>}
-    </Stack>;
+    content = <ProjectSelectPage isServiceAdmin={state.viewer.isServiceAdmin} />;
   }
   return (
     <Box component="main" sx={{ minHeight: "100vh", display: "grid", alignItems: "center", py: 6 }}>
