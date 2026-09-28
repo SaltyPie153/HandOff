@@ -41,3 +41,13 @@ it('does not show the server key section to an ordinary approved member', async 
   await screen.findByRole('heading', { name: '로그인 수단 관리' });
   expect(screen.queryByRole('heading', { name: '서버 Codex API 키' })).not.toBeInTheDocument();
 });
+
+it('waits for the initial status before allowing a save', async () => {
+  let finish!: (value: Response) => void;
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+  render(<AgentKeySettings />);
+  expect(screen.getByLabelText('OpenAI API 키')).toBeDisabled();
+  expect(screen.getByRole('button', { name: '저장·교체' })).toBeDisabled();
+  finish(new Response(JSON.stringify({ configured: false, source: 'none' }), { status: 200 }));
+  await waitFor(() => expect(screen.getByLabelText('OpenAI API 키')).toBeEnabled());
+});

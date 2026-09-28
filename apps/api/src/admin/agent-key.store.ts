@@ -3,12 +3,16 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const exec = promisify(execFile);
 const fileName = 'agent-key.json';
 const invalid = () => new Error('Server agent key is unavailable');
 const keyPattern = /^sk-[A-Za-z0-9_-]{4,512}$/;
+const inside = (base: string, target: string) => {
+  const part = relative(base, target);
+  return part === '' || (part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part));
+};
 
 export type AgentKeyState = {
   configured: boolean;
@@ -27,14 +31,12 @@ export class AgentKeyStore {
     const root = resolve(config.workRoot ?? process.cwd());
     this.dir = config.secretDir ?? join(root, 'work', 'server-secrets');
     if (!isAbsolute(this.dir)) throw invalid();
-    const web = join(root, 'apps', 'web');
-    const withinWeb = relative(web, resolve(this.dir));
-    if (!withinWeb.startsWith('..') && !isAbsolute(withinWeb)) throw invalid();
+    const target = resolve(this.dir);
+    if (inside(join(root, 'apps', 'web'), target)) throw invalid();
     if (this.nodeEnv === 'production') {
       if (!config.secretDir) throw invalid();
-      const withinRoot = relative(root, resolve(this.dir));
-      if (!withinRoot.startsWith('..') && !isAbsolute(withinRoot)) throw invalid();
-    }
+      if (inside(root, target)) throw invalid();
+    } else if (inside(root, target) && !inside(join(root, 'work'), target)) throw invalid();
   }
 
   private async guarded<T>(action: () => Promise<T>): Promise<T> {
