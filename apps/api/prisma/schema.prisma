@@ -41,6 +41,18 @@ enum ProjectMemberAction {
   REMOVE
 }
 
+enum HandoffReplySource {
+  HUMAN
+  CODEX_AUTO
+}
+
+enum HandoffJobStatus {
+  PENDING
+  PROCESSING
+  REVIEW_REQUIRED
+  COMPLETED
+}
+
 model User {
   id             String       @id @default(uuid()) @db.Uuid
   status         MemberStatus @default(PENDING)
@@ -58,6 +70,9 @@ model User {
   projectMemberships ProjectMembership[]
   projectMemberEventsTarget ProjectMemberEvent[] @relation("ProjectEventTarget")
   projectMemberEventsActor ProjectMemberEvent[] @relation("ProjectEventActor")
+  sentHandoffs HandoffRequest[] @relation("HandoffSender")
+  receivedHandoffs HandoffRequest[] @relation("HandoffRecipient")
+  handoffReplies HandoffReply[]
 
   @@map("users")
 }
@@ -71,6 +86,7 @@ model Project {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   memberships ProjectMembership[]
   memberEvents ProjectMemberEvent[]
+  handoffRequests HandoffRequest[]
 
   @@map("projects")
 }
@@ -168,4 +184,70 @@ model AdminGrant {
   grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
 
   @@map("admin_grants")
+}
+
+model HandoffRequest {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  senderId String @map("sender_id") @db.Uuid
+  recipientId String @map("recipient_id") @db.Uuid
+  publicTitle String @map("public_title") @db.VarChar(160)
+  sendKey String @map("send_key") @db.VarChar(128)
+  payloadHash String @map("payload_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sender User @relation("HandoffSender", fields: [senderId], references: [id])
+  recipient User @relation("HandoffRecipient", fields: [recipientId], references: [id])
+  versions HandoffVersion[]
+  replies HandoffReply[]
+  job HandoffJob?
+
+  @@unique([senderId, sendKey])
+  @@index([projectId, createdAt])
+  @@index([recipientId, createdAt])
+  @@map("handoff_requests")
+}
+
+model HandoffVersion {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  version Int
+  privateBody String @map("private_body") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, version])
+  @@map("handoff_versions")
+}
+
+model HandoffReply {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  body String @db.Text
+  source HandoffReplySource
+  replyKey String @map("reply_key") @db.VarChar(128)
+  payloadHash String @map("payload_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@unique([requestId, actorId, replyKey])
+  @@index([requestId, createdAt])
+  @@map("handoff_replies")
+}
+
+model HandoffJob {
+  requestId String @id @map("request_id") @db.Uuid
+  status HandoffJobStatus @default(PENDING)
+  attempts Int @default(0)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+  reviewReason String? @map("review_reason") @db.VarChar(255)
+  reviewDraft String? @map("review_draft") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  request HandoffRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([status, leaseUntil])
+  @@map("handoff_jobs")
 }
