@@ -41,7 +41,7 @@ it('lets a manager see the empty room and clears stale roster after access loss'
   vi.stubGlobal('fetch', fetchMock);
   render(<ProjectRoomPage id={room.id} />);
   expect(await screen.findByText(/이전 룸 멤버 현황/)).toBeVisible();
-  expect(screen.getByText(/아직 공유된 요청이 없습니다/)).toBeVisible();
+  expect(screen.getByRole('link', { name: '팀 인수인계 피드' })).toHaveAttribute('href', `/projects/${room.id}/feed`);
   fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('접근 권한이 없습니다');
   expect(screen.queryByText(/이전 룸 멤버 현황/)).not.toBeInTheDocument();

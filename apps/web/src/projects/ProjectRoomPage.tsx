@@ -28,7 +28,8 @@ export function ProjectRoomPage({ id }: { id: string }) {
       {room.description && <Typography>{room.description}</Typography>}
       <Typography component="h2" variant="h6">멤버 현황</Typography>
       <List>{room.members.map(member => <ListItem key={member.userId}>{member.displayName ?? member.userId} · {member.role === 'MANAGER' ? '관리 담당자' : '멤버'}</ListItem>)}</List>
-      <Typography>아직 공유된 요청이 없습니다.</Typography>
+      <Link href={`/projects/${id}/feed`}>팀 인수인계 피드</Link>
+      <Link href={`/projects/${id}/inbox`}>내 받은함·보낸함</Link>
       {room.role === 'MANAGER' && <Link href={`/projects/${id}/members`}>멤버 관리</Link>}
       <Button onClick={() => void refresh()}>새로고침</Button>
       <Link href="/projects">프로젝트 선택으로</Link>
