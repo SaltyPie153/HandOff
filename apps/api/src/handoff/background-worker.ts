@@ -34,7 +34,7 @@ export class HandoffBackgroundWorker {
 
   async wakeUnavailableJobs() {
     if (!(await this.keyStore.read()).configured) return;
-    await this.prisma.handoffJob.updateMany({ where: { status: 'REVIEW_REQUIRED', reviewReason: '서버 Codex 확인 불가' },
+    await this.prisma.handoffJob.updateMany({ where: { status: 'REVIEW_REQUIRED', reviewReason: { in: ['서버 Codex 확인 불가', 'Upstage 확인 불가'] } },
       data: { status: 'PENDING', reviewReason: null, reviewDraft: null } });
   }
 
@@ -133,10 +133,10 @@ export class HandoffBackgroundWorker {
         if (decision.kind === 'REVIEW_REQUIRED') { await this.review(request.id, job.executionId, decision.reason); continue; }
         const keyState = await this.keyStore.read();
         if (!keyState.configured || !keyState.key) {
-          await this.review(request.id, job.executionId, '서버 Codex 확인 불가'); continue;
+          await this.review(request.id, job.executionId, 'Upstage 확인 불가'); continue;
         }
         const confirmed = await this.agent.confirmExplicitClaim(version.verificationClaim!, collected.records, keyState.key);
-        if (!confirmed) { await this.review(request.id, job.executionId, '서버 Codex가 명시적 근거를 확인하지 못했습니다'); continue; }
+        if (!confirmed) { await this.review(request.id, job.executionId, 'Upstage가 명시적 근거를 확인하지 못했습니다'); continue; }
         const current = await this.evidence.collect(request.recipientId, request.projectId);
         const second = decideReply(version.verificationClaim, current.records, current.unavailable);
         if (second.kind !== 'AUTO_REPLY' || JSON.stringify(second.evidenceRefs) !== JSON.stringify(decision.evidenceRefs)) {
@@ -145,7 +145,7 @@ export class HandoffBackgroundWorker {
         const publication = await this.keyStore.withGeneration(keyState.generation, () =>
           this.publish(request.id, job.executionId, version.version, decision.publicBody, decision.evidenceRefs));
         if (!publication.unchanged) {
-          await this.review(request.id, job.executionId, '서버 Codex 설정이 변경되었습니다'); continue;
+          await this.review(request.id, job.executionId, 'Upstage 키 설정이 변경되었습니다'); continue;
         }
         if (!publication.value) {
           await this.review(request.id, job.executionId, '게시 전 권한 또는 버전이 변경되었습니다');

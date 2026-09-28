@@ -25,7 +25,7 @@ export function HandoffFeedPage({ projectId, viewerId }: { projectId: string; vi
           : item.publicTitle}
       </Typography>
       {item.replies.map(reply => <Typography key={reply.id} sx={{ whiteSpace: 'pre-wrap' }}>
-        {reply.source === 'CODEX_AUTO' ? 'Codex 자동 회신 · ' : '회원 회신 · '}{reply.body}
+        {reply.source === 'CODEX_AUTO' ? '서버 자동 회신 · ' : '회원 회신 · '}{reply.body}
       </Typography>)}
     </ListItem>)}</List>
   </Stack>;

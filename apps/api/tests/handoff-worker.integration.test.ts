@@ -57,7 +57,7 @@ integrationTest('worker publishes only one minimal reply after explicit evidence
       publicTitle: 'Missing key', privateBody: 'private', verificationClaim: content, idempotencyKey: randomUUID() });
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: unavailable.id } }), 0);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: unavailable.id } })).reviewReason, '서버 Codex 확인 불가');
+    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: unavailable.id } })).reviewReason, 'Upstage 확인 불가');
     await store.save('sk-fake-worker-key-v2');
     await worker.wakeUnavailableJobs();
     assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: unavailable.id } })).status, 'PENDING');

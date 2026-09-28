@@ -39,7 +39,7 @@ export function HandoffRequestPage({ projectId, requestId, viewerId }: { project
       {detail.verificationClaim && <Typography>자동 확인 항목: {detail.verificationClaim}</Typography>}
       <Typography component="h2" variant="h6">팀 공개 회신</Typography>
       {detail.replies.map(reply => <Typography key={reply.id} sx={{ whiteSpace: 'pre-wrap' }}>
-        {reply.source === 'CODEX_AUTO' ? 'Codex 자동 회신 · ' : '회원 회신 · '}{reply.body}
+        {reply.source === 'CODEX_AUTO' ? '서버 자동 회신 · ' : '회원 회신 · '}{reply.body}
       </Typography>)}
       {viewerId === detail.recipientId && <>
         {detail.job?.status === 'REVIEW_REQUIRED' && <Alert severity="info">자동 회신 대신 검토가 필요합니다. {detail.job.reviewReason}</Alert>}

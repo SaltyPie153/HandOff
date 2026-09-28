@@ -6,9 +6,9 @@ import { lstat, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const exec = promisify(execFile);
-const fileName = 'agent-key.json';
+const fileName = 'upstage-agent-key.json';
 const invalid = () => new Error('Server agent key is unavailable');
-const keyPattern = /^sk-[A-Za-z0-9_-]{4,512}$/;
+const keyPattern = /^[\x21-\x7e]{8,512}$/;
 const inside = (base: string, target: string) => {
   const part = relative(base, target);
   return part === '' || (part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part));
@@ -107,7 +107,7 @@ export class AgentKeyStore {
         if (!(typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT')) throw invalid();
       }
     }
-    const key = process.env.OPENAI_API_KEY;
+    const key = process.env.UPSTAGE_API_KEY;
     if (key && keyPattern.test(key)) return { configured: true, source: 'environment', generation: `env:${key}`, key };
     return { configured: false, source: 'none', generation: 'none' };
   }
