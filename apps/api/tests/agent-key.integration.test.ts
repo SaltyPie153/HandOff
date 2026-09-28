@@ -29,7 +29,7 @@ integrationTest('only an approved service admin can manage the key with CSRF, an
   const app = module.createNestApplication();
   await app.listen(0, '127.0.0.1');
   const port = (app.getHttpServer().address() as { port: number }).port;
-  const key = 'sk-fake-admin-integration-key';
+  const key = 'upstage-fake-admin-integration-key';
   const request = (token: string | undefined, method = 'GET', csrf?: string, body?: unknown) => fetch(`http://127.0.0.1:${port}/api/admin/agent-key`, {
     method, headers: { ...(token ? { Cookie: `ho_session=${token}` } : {}), ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {}) },

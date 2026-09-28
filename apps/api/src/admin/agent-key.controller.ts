@@ -28,7 +28,7 @@ export class AgentKeyController {
     this.noStore(res);
     const session = await this.auth.requireAction(req, 'MANAGE_AGENT_KEY');
     this.auth.requireCsrf(req, session.csrfHash);
-    if (typeof body?.key !== 'string' || !/^sk-[A-Za-z0-9_-]{4,512}$/.test(body.key)) {
+    if (typeof body?.key !== 'string' || !/^[\x21-\x7e]{8,512}$/.test(body.key)) {
       throw new BadRequestException('Invalid server agent key');
     }
     try { await this.store.save(body.key); }
