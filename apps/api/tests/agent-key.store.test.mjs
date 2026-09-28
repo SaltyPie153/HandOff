@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -67,4 +67,35 @@ test('malformed file fails closed instead of using environment key', async () =>
 
 test('production rejects relative secret directory', async () => {
   assert.throws(() => new AgentKeyStore({ nodeEnv: 'production', secretDir: 'work/server-secrets' }));
+});
+
+test('custom secret directory cannot be placed in Git or web paths', () => {
+  const root = join(tmpdir(), 'handoff-boundary');
+  assert.throws(() => new AgentKeyStore({ nodeEnv: 'development', workRoot: root, secretDir: join(root, 'docs', 'keys') }));
+  assert.throws(() => new AgentKeyStore({ nodeEnv: 'development', workRoot: root, secretDir: join(root, 'apps', 'web', 'public', 'secrets') }));
+  assert.throws(() => new AgentKeyStore({ nodeEnv: 'production', workRoot: root, secretDir: join(root, '..secrets') }));
+  assert.doesNotThrow(() => new AgentKeyStore({ nodeEnv: 'development', workRoot: root, secretDir: join(root, 'work', 'keys') }));
+});
+
+test('API launched from apps/api keeps the default key under repository work', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'handoff-agent-root-'));
+  const api = join(root, 'apps', 'api');
+  await mkdir(api, { recursive: true });
+  const previousCwd = process.cwd();
+  const previousDir = process.env.HANDOFF_SECRET_DIR;
+  delete process.env.HANDOFF_SECRET_DIR;
+  try {
+    process.chdir(api);
+    const { HandoffModule } = await import('../dist/src/handoff/handoff.module.js');
+    const module = HandoffModule.register({ nodeEnv: 'development' });
+    const provider = module.providers.find(item => item.provide === AgentKeyStore);
+    const store = provider.useFactory();
+    await store.save('sk-fake-root-key');
+    assert.equal((await stat(join(root, 'work', 'server-secrets', 'agent-key.json'))).isFile(), true);
+  } finally {
+    process.chdir(previousCwd);
+    if (previousDir !== undefined) process.env.HANDOFF_SECRET_DIR = previousDir;
+    assert.ok(root.startsWith(join(tmpdir(), 'handoff-agent-root-')));
+    await rm(root, { recursive: true, force: true });
+  }
 });

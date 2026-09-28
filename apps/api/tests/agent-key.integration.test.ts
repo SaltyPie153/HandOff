@@ -40,6 +40,12 @@ integrationTest('only an approved service admin can manage the key with CSRF, an
     assert.equal((await request(memberSession.token)).status, 403);
     assert.equal((await request(adminSession.token)).status, 403);
     await prisma.user.update({ where: { id: adminId }, data: { status: 'APPROVED', isServiceAdmin: true } });
+    const malformed = await fetch(`http://127.0.0.1:${port}/api/admin/agent-key`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: 'sk-DUMMY-REVIEW-LEAK'
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal(malformed.headers.get('cache-control'), 'no-store');
+    assert.equal((await malformed.text()).includes('sk-DUMMY-REVIEW-LEAK'), false);
     assert.equal((await request(adminSession.token, 'PUT', undefined, { key })).status, 403);
     const saved = await request(adminSession.token, 'PUT', adminSession.csrf, { key });
     assert.equal(saved.status, 200);
