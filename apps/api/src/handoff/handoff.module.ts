@@ -7,6 +7,7 @@ import { HandoffProjectController, HandoffMcpController } from './handoff.contro
 import { HandoffRepository } from './handoff.repository.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { HandoffBackgroundWorker } from './background-worker.js';
+import { ManagedAgentRunner } from './agent-runner.js';
 import { AgentKeyStore } from '../admin/agent-key.store.js';
 import { AgentKeyController } from '../admin/agent-key.controller.js';
 
@@ -23,8 +24,9 @@ export class HandoffModule {
         { provide: HandoffRepository, useFactory: (prisma: PrismaService) => new HandoffRepository(prisma), inject: [PrismaService] },
         { provide: McpGrantService, useFactory: (prisma: PrismaService) => new McpGrantService(prisma), inject: [PrismaService] },
         { provide: EvidenceService, useFactory: (prisma: PrismaService) => new EvidenceService(prisma), inject: [PrismaService] },
-        { provide: HandoffBackgroundWorker, useFactory: (prisma: PrismaService, evidence: EvidenceService) =>
-          new HandoffBackgroundWorker(prisma, evidence), inject: [PrismaService, EvidenceService] }
+        { provide: HandoffBackgroundWorker, useFactory: (prisma: PrismaService, evidence: EvidenceService, keyStore: AgentKeyStore) =>
+          new HandoffBackgroundWorker(prisma, evidence, new ManagedAgentRunner(), keyStore),
+          inject: [PrismaService, EvidenceService, AgentKeyStore] }
       ],
       exports: [HandoffBackgroundWorker]
     };

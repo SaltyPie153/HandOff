@@ -2,16 +2,16 @@ import OpenAI from 'openai';
 import type { EvidenceRecord } from '../evidence/evidence.service.js';
 
 export interface AgentRunner {
-  confirmExplicitClaim(claim: string, evidence: EvidenceRecord[]): Promise<boolean>;
+  confirmExplicitClaim(claim: string, evidence: EvidenceRecord[], apiKey: string): Promise<boolean>;
 }
 
 export class ManagedAgentRunner implements AgentRunner {
-  async confirmExplicitClaim(claim: string, evidence: EvidenceRecord[]): Promise<boolean> {
-    if (!process.env.OPENAI_API_KEY) return false;
+  async confirmExplicitClaim(claim: string, evidence: EvidenceRecord[], apiKey: string): Promise<boolean> {
+    if (!apiKey) return false;
     const key = claim.split(':', 1)[0];
     const lines = evidence.map(source => source.content.split(/\r?\n/)
       .filter(line => line.trim().startsWith(`${key}: `)).slice(0, 10));
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey });
     let sessionId: string | undefined;
     let answer = '';
     let completed = false;

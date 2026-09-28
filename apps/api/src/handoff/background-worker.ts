@@ -4,6 +4,7 @@ import { EvidenceService } from '../evidence/evidence.service.js';
 import { isFreshLocalSnapshot } from '../evidence/evidence-policy.js';
 import { decideReply } from './reply-decision.js';
 import { type AgentRunner, ManagedAgentRunner } from './agent-runner.js';
+import { AgentKeyStore } from '../admin/agent-key.store.js';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -11,7 +12,9 @@ export class HandoffBackgroundWorker {
   private timer: NodeJS.Timeout | undefined;
   private busy = false;
   constructor(private readonly prisma: PrismaService, private readonly evidence: EvidenceService,
-    private readonly agent: AgentRunner = new ManagedAgentRunner()) {}
+    private readonly agent: AgentRunner = new ManagedAgentRunner(),
+    private readonly keyStore: AgentKeyStore = new AgentKeyStore({ nodeEnv: process.env.NODE_ENV ?? 'development',
+      secretDir: process.env.HANDOFF_SECRET_DIR })) {}
 
   start() {
     if (this.timer) return;
@@ -30,7 +33,7 @@ export class HandoffBackgroundWorker {
   }
 
   async wakeUnavailableJobs() {
-    if (!process.env.OPENAI_API_KEY) return;
+    if (!(await this.keyStore.read()).configured) return;
     await this.prisma.handoffJob.updateMany({ where: { status: 'REVIEW_REQUIRED', reviewReason: '서버 Codex 확인 불가' },
       data: { status: 'PENDING', reviewReason: null, reviewDraft: null } });
   }
@@ -128,17 +131,23 @@ export class HandoffBackgroundWorker {
         const collected = await this.evidence.collect(request.recipientId, request.projectId);
         const decision = decideReply(version?.verificationClaim ?? null, collected.records, collected.unavailable);
         if (decision.kind === 'REVIEW_REQUIRED') { await this.review(request.id, job.executionId, decision.reason); continue; }
-        if (!process.env.OPENAI_API_KEY && this.agent instanceof ManagedAgentRunner) {
+        const keyState = await this.keyStore.read();
+        if (!keyState.configured || !keyState.key) {
           await this.review(request.id, job.executionId, '서버 Codex 확인 불가'); continue;
         }
-        const confirmed = await this.agent.confirmExplicitClaim(version.verificationClaim!, collected.records);
+        const confirmed = await this.agent.confirmExplicitClaim(version.verificationClaim!, collected.records, keyState.key);
         if (!confirmed) { await this.review(request.id, job.executionId, '서버 Codex가 명시적 근거를 확인하지 못했습니다'); continue; }
         const current = await this.evidence.collect(request.recipientId, request.projectId);
         const second = decideReply(version.verificationClaim, current.records, current.unavailable);
         if (second.kind !== 'AUTO_REPLY' || JSON.stringify(second.evidenceRefs) !== JSON.stringify(decision.evidenceRefs)) {
           await this.review(request.id, job.executionId, '근거가 처리 중 변경되었습니다'); continue;
         }
-        if (!await this.publish(request.id, job.executionId, version.version, decision.publicBody, decision.evidenceRefs)) {
+        const publication = await this.keyStore.withGeneration(keyState.generation, () =>
+          this.publish(request.id, job.executionId, version.version, decision.publicBody, decision.evidenceRefs));
+        if (!publication.unchanged) {
+          await this.review(request.id, job.executionId, '서버 Codex 설정이 변경되었습니다'); continue;
+        }
+        if (!publication.value) {
           await this.review(request.id, job.executionId, '게시 전 권한 또는 버전이 변경되었습니다');
         }
       } catch {
