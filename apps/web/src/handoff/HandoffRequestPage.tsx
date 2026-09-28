@@ -36,6 +36,7 @@ export function HandoffRequestPage({ projectId, requestId, viewerId }: { project
       <Typography component="h1" variant="h4">{detail.publicTitle}</Typography>
       <Typography color="text.secondary">비공개 요청 · 버전 {detail.version}</Typography>
       <Typography sx={{ whiteSpace: 'pre-wrap' }}>{detail.privateBody}</Typography>
+      {detail.verificationClaim && <Typography>자동 확인 항목: {detail.verificationClaim}</Typography>}
       <Typography component="h2" variant="h6">팀 공개 회신</Typography>
       {detail.replies.map(reply => <Typography key={reply.id} sx={{ whiteSpace: 'pre-wrap' }}>
         {reply.source === 'CODEX_AUTO' ? 'Codex 자동 회신 · ' : '회원 회신 · '}{reply.body}

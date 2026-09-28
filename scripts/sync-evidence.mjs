@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, stat } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,8 +34,9 @@ export async function syncFile({ path, sourceId, origin }, token, http = fetch) 
   const dirty = await http(`${root}/dirty`, options);
   if (!dirty.ok) throw new Error(`Evidence dirty report failed (${dirty.status})`);
   const content = await readFile(path, 'utf8');
-  const after = await stat(path);
-  if (after.size !== file.size || after.mtimeMs !== file.mtimeMs || Buffer.byteLength(content, 'utf8') > 60_000) {
+  const after = await lstat(path);
+  if (!after.isFile() || after.isSymbolicLink() || after.ino !== file.ino || after.dev !== file.dev ||
+      after.size !== file.size || after.mtimeMs !== file.mtimeMs || Buffer.byteLength(content, 'utf8') > 60_000) {
     throw new Error('File changed during sync; source remains marked stale');
   }
   const contentHash = createHash('sha256').update(content).digest('hex');
@@ -51,8 +52,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const result = await syncFile(args, process.env.HANDOFF_SYNC_TOKEN);
       console.log(`Evidence synced: ${result.contentHash}`);
     };
-    await run();
     if (args.watch) {
+      await run().catch(error => console.error(error instanceof Error ? error.message : 'Evidence sync failed'));
       let busy = false;
       setInterval(() => {
         if (busy) return;
@@ -60,7 +61,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         void run().catch(error => console.error(error instanceof Error ? error.message : 'Evidence sync failed'))
           .finally(() => { busy = false; });
       }, 60 * 60 * 1000);
-    }
+    } else await run();
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Evidence sync failed');
     process.exitCode = 1;
