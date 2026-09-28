@@ -14,6 +14,7 @@ import { HandoffInboxPage } from './handoff/HandoffInboxPage';
 import { HandoffRequestPage } from './handoff/HandoffRequestPage';
 import { McpGrants } from './handoff/McpGrants';
 import { EvidenceSources } from './handoff/EvidenceSources';
+import { AgentKeySettings } from './handoff/AgentKeySettings';
 
 export default function App() {
   const health = window.location.pathname === '/dev/health';
@@ -49,6 +50,7 @@ export default function App() {
       <AccountLinks linkedProviders={state.viewer.linkedProviders} />
       <McpGrants />
       <EvidenceSources />
+      {state.viewer.isServiceAdmin && <AgentKeySettings />}
     </Stack>;
   } else if (/^\/projects\/[0-9a-f-]{36}\/requests\/[0-9a-f-]{36}$/i.test(path)) {
     content = <HandoffRequestPage projectId={path.split('/')[2]} requestId={path.split('/')[4]} viewerId={state.viewer.id} />;
