@@ -31,6 +31,16 @@ enum AttemptIntent {
   LINK
 }
 
+enum ProjectRole {
+  MANAGER
+  MEMBER
+}
+
+enum ProjectMemberAction {
+  ADD
+  REMOVE
+}
+
 model User {
   id             String       @id @default(uuid()) @db.Uuid
   status         MemberStatus @default(PENDING)
@@ -44,8 +54,53 @@ model User {
   approvalsMade  MembershipApproval[] @relation("ApprovalActor")
   grants         AdminGrant[] @relation("GrantedUser")
   grantsMade     AdminGrant[] @relation("GrantActor")
+  createdProjects Project[] @relation("ProjectCreator")
+  projectMemberships ProjectMembership[]
+  projectMemberEventsTarget ProjectMemberEvent[] @relation("ProjectEventTarget")
+  projectMemberEventsActor ProjectMemberEvent[] @relation("ProjectEventActor")
 
   @@map("users")
+}
+
+model Project {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String @db.VarChar(120)
+  description String? @db.VarChar(500)
+  creatorId   String @map("creator_id") @db.Uuid
+  creator     User @relation("ProjectCreator", fields: [creatorId], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  memberships ProjectMembership[]
+  memberEvents ProjectMemberEvent[]
+
+  @@map("projects")
+}
+
+model ProjectMembership {
+  projectId String @map("project_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  role ProjectRole
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_memberships")
+}
+
+model ProjectMemberEvent {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  targetId String @map("target_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  action ProjectMemberAction
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  target User @relation("ProjectEventTarget", fields: [targetId], references: [id])
+  actor User @relation("ProjectEventActor", fields: [actorId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("project_member_events")
 }
 
 model ProviderIdentity {
