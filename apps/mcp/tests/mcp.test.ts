@@ -34,13 +34,19 @@ test('MCP server advertises tools and validates arguments before sending', async
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_my_request', 'list_my_projects', 'send_request']);
+    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_my_request', 'list_my_projects', 'resend_request', 'send_request']);
     const result = await client.callTool({ name: 'list_my_projects', arguments: {} });
     assert.equal(result.isError, undefined);
     assert.equal(calls.length, 1);
+    const resent = await client.callTool({ name: 'resend_request', arguments: {
+      requestId: '4dafdeba-9bb7-4581-900a-b3f60d1bf081', expectedVersion: 1,
+      privateBody: 'new private version', idempotencyKey: 'retry-key'
+    } });
+    assert.equal(resent.isError, undefined);
+    assert.equal(calls.at(-1), 'https://handoff.example/api/mcp/requests/4dafdeba-9bb7-4581-900a-b3f60d1bf081/versions');
     const invalid = await client.callTool({ name: 'send_request', arguments: { privateBody: 'secret' } });
     assert.equal(invalid.isError, true);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2);
   } finally {
     await client.close();
     await server.close();

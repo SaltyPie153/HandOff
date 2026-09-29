@@ -4,6 +4,7 @@ import { EvidenceService } from '../evidence/evidence.service.js';
 import { isFreshLocalSnapshot } from '../evidence/evidence-policy.js';
 import { decideReply } from './reply-decision.js';
 import { type AgentRunner, ManagedAgentRunner } from './agent-runner.js';
+import { lockRequest, requireParticipants, requireGrant } from './handoff-workflow.js';
 import { AgentKeyStore } from '../admin/agent-key.store.js';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -42,27 +43,27 @@ export class HandoffBackgroundWorker {
     const now = new Date();
     const candidate = await this.prisma.handoffJob.findFirst({ where: { OR: [
       { status: 'PENDING' }, { status: 'PROCESSING', leaseUntil: { lt: now } }
-    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, status: true } });
+    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, versionId: true, status: true } });
     if (!candidate) return null;
     const executionId = randomUUID();
-    const claimed = await this.prisma.handoffJob.updateMany({ where: { requestId: candidate.requestId,
+    const claimed = await this.prisma.handoffJob.updateMany({ where: { versionId: candidate.versionId,
       ...(candidate.status === 'PENDING' ? { status: 'PENDING' as const } :
         { status: 'PROCESSING' as const, leaseUntil: { lt: now } }) },
       data: { status: 'PROCESSING', attempts: { increment: 1 }, executionId,
         leaseUntil: new Date(Date.now() + 10 * 60 * 1000) } });
-    return claimed.count ? { requestId: candidate.requestId, executionId } : null;
+    return claimed.count ? { requestId: candidate.requestId, versionId: candidate.versionId, executionId } : null;
   }
 
-  private async review(requestId: string, executionId: string, reason: string) {
-    await this.prisma.handoffJob.updateMany({ where: { requestId, status: 'PROCESSING', executionId },
+  private async review(versionId: string, executionId: string, reason: string) {
+    await this.prisma.handoffJob.updateMany({ where: { versionId, status: 'PROCESSING', executionId },
       data: { status: 'REVIEW_REQUIRED', leaseUntil: null, reviewReason: reason,
         reviewDraft: '자동 확인 근거를 검토하고 공개할 회신을 직접 작성해 주세요.' } });
   }
 
-  private async activeRequest(requestId: string) {
+  private async activeRequest(requestId: string, versionId: string) {
     const request = await this.prisma.handoffRequest.findUnique({ where: { id: requestId },
       include: { versions: { orderBy: { version: 'desc' }, take: 1 }, grant: true } });
-    if (!request?.grant || request.grant.revokedAt || request.grant.expiresAt <= new Date()) return null;
+    if (!request?.grant || request.versions[0]?.id !== versionId || request.versions[0]?.status !== 'AWAITING_REVIEW' || request.grant.revokedAt || request.grant.expiresAt <= new Date()) return null;
     if (request.grant.userId !== request.senderId || request.grant.projectId !== request.projectId) return null;
     for (const userId of [request.senderId, request.recipientId]) {
       const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
@@ -73,16 +74,19 @@ export class HandoffBackgroundWorker {
     return request;
   }
 
-  private async publish(requestId: string, executionId: string, version: number, body: string,
+  private async publish(requestId: string, versionId: string, executionId: string, version: number, body: string,
     refs: Array<{ kind: string; sourceId: string; version: string }>) {
     return this.prisma.$transaction(async tx => {
-      const job = await tx.handoffJob.findUnique({ where: { requestId } });
+      await lockRequest(tx, requestId);
+      const job = await tx.handoffJob.findUnique({ where: { versionId } });
       if (job?.status !== 'PROCESSING' || job.executionId !== executionId || !job.leaseUntil || job.leaseUntil <= new Date()) return false;
       const request = await tx.handoffRequest.findUnique({ where: { id: requestId },
         include: { grant: true, versions: { orderBy: { version: 'desc' }, take: 1 } } });
-      if (!request?.grant || request.grant.revokedAt || request.grant.expiresAt <= new Date() ||
+      if (!request?.grant || request.versions[0]?.id !== versionId || request.versions[0]?.status !== 'AWAITING_REVIEW' || request.grant.revokedAt || request.grant.expiresAt <= new Date() ||
           request.versions[0]?.version !== version) return false;
       if (request.grant.userId !== request.senderId || request.grant.projectId !== request.projectId) return false;
+      await requireParticipants(tx, request);
+      await requireGrant(tx, request.grant.id, request.senderId, request.projectId);
       for (const userId of [request.senderId, request.recipientId]) {
         const user = await tx.user.findUnique({ where: { id: userId }, select: { status: true } });
         const member = await tx.projectMembership.findUnique({ where: { projectId_userId: { projectId: request.projectId, userId } } });
@@ -99,17 +103,17 @@ export class HandoffBackgroundWorker {
           (!source.snapshot || source.snapshot.contentHash !== ref.version ||
             !isFreshLocalSnapshot(source.snapshot, new Date()));
       })) return false;
-      const humanReply = await tx.handoffReply.count({ where: { requestId, source: 'HUMAN' } });
+      const humanReply = await tx.handoffReply.count({ where: { versionId, source: 'HUMAN' } });
       if (humanReply) {
-        await tx.handoffJob.update({ where: { requestId }, data: { status: 'COMPLETED', leaseUntil: null } });
+        await tx.handoffJob.update({ where: { versionId }, data: { status: 'COMPLETED', leaseUntil: null } });
         return true;
       }
-      await tx.handoffReply.createMany({ data: [{ id: randomUUID(), requestId, actorId: request.recipientId,
+      await tx.handoffReply.createMany({ data: [{ id: randomUUID(), requestId, versionId, actorId: request.recipientId,
         body, source: 'CODEX_AUTO', replyKey: `auto-v${version}`, payloadHash: hash(body) }], skipDuplicates: true });
-      await tx.handoffJob.update({ where: { requestId }, data: { status: 'COMPLETED', leaseUntil: null,
+      await tx.handoffJob.update({ where: { versionId }, data: { status: 'COMPLETED', leaseUntil: null,
         evidenceRefs: refs, reviewReason: null, reviewDraft: null } });
       return true;
-    }, { isolationLevel: 'Serializable' });
+    });
   }
 
   async processPendingJobs(limit = 5): Promise<number> {
@@ -119,39 +123,39 @@ export class HandoffBackgroundWorker {
       if (!job) break;
       processed++;
       try {
-        const request = await this.activeRequest(job.requestId);
-        if (!request) { await this.review(job.requestId, job.executionId, '현재 요청 권한을 확인할 수 없습니다'); continue; }
+        const request = await this.activeRequest(job.requestId, job.versionId);
+        if (!request) { await this.review(job.versionId, job.executionId, '현재 요청 권한을 확인할 수 없습니다'); continue; }
         const version = request.versions[0];
-        const existingReply = await this.prisma.handoffReply.count({ where: { requestId: request.id } });
+        const existingReply = await this.prisma.handoffReply.count({ where: { versionId: job.versionId } });
         if (existingReply) {
-          await this.prisma.handoffJob.updateMany({ where: { requestId: request.id, executionId: job.executionId },
+          await this.prisma.handoffJob.updateMany({ where: { versionId: job.versionId, executionId: job.executionId },
             data: { status: 'COMPLETED', leaseUntil: null } });
           continue;
         }
         const collected = await this.evidence.collect(request.recipientId, request.projectId);
         const decision = decideReply(version?.verificationClaim ?? null, collected.records, collected.unavailable);
-        if (decision.kind === 'REVIEW_REQUIRED') { await this.review(request.id, job.executionId, decision.reason); continue; }
+        if (decision.kind === 'REVIEW_REQUIRED') { await this.review(job.versionId, job.executionId, decision.reason); continue; }
         const keyState = await this.keyStore.read();
         if (!keyState.configured || !keyState.key) {
-          await this.review(request.id, job.executionId, 'Upstage 확인 불가'); continue;
+          await this.review(job.versionId, job.executionId, 'Upstage 확인 불가'); continue;
         }
         const confirmed = await this.agent.confirmExplicitClaim(version.verificationClaim!, collected.records, keyState.key);
-        if (!confirmed) { await this.review(request.id, job.executionId, 'Upstage가 명시적 근거를 확인하지 못했습니다'); continue; }
+        if (!confirmed) { await this.review(job.versionId, job.executionId, 'Upstage가 명시적 근거를 확인하지 못했습니다'); continue; }
         const current = await this.evidence.collect(request.recipientId, request.projectId);
         const second = decideReply(version.verificationClaim, current.records, current.unavailable);
         if (second.kind !== 'AUTO_REPLY' || JSON.stringify(second.evidenceRefs) !== JSON.stringify(decision.evidenceRefs)) {
-          await this.review(request.id, job.executionId, '근거가 처리 중 변경되었습니다'); continue;
+          await this.review(job.versionId, job.executionId, '근거가 처리 중 변경되었습니다'); continue;
         }
         const publication = await this.keyStore.withGeneration(keyState.generation, () =>
-          this.publish(request.id, job.executionId, version.version, decision.publicBody, decision.evidenceRefs));
+          this.publish(request.id, job.versionId, job.executionId, version.version, decision.publicBody, decision.evidenceRefs));
         if (!publication.unchanged) {
-          await this.review(request.id, job.executionId, 'Upstage 키 설정이 변경되었습니다'); continue;
+          await this.review(job.versionId, job.executionId, 'Upstage 키 설정이 변경되었습니다'); continue;
         }
         if (!publication.value) {
-          await this.review(request.id, job.executionId, '게시 전 권한 또는 버전이 변경되었습니다');
+          await this.review(job.versionId, job.executionId, '게시 전 권한 또는 버전이 변경되었습니다');
         }
       } catch {
-        await this.review(job.requestId, job.executionId, '자동 확인을 완료하지 못했습니다');
+        await this.review(job.versionId, job.executionId, '자동 확인을 완료하지 못했습니다');
       }
     }
     return processed;

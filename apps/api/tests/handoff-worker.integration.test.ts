@@ -46,21 +46,21 @@ integrationTest('worker publishes only one minimal reply after explicit evidence
     assert.equal(feed[0]?.replies.length, 1);
     assert.ok(!JSON.stringify(feed).includes('API_SCOPE: read-only'));
     assert.ok(!JSON.stringify(feed).includes('Please check scope privately'));
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: request.id } })).status, 'COMPLETED');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: request.id } })).status, 'COMPLETED');
     const rotated = await handoffs.createRequest(senderId, projectId, { recipientId, grantId: grant.id,
       publicTitle: 'Rotating key', privateBody: 'private', verificationClaim: content, idempotencyKey: randomUUID() });
     onConfirm = async () => { await store.disable(); return true; };
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: rotated.id, source: 'CODEX_AUTO' } }), 0);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: rotated.id } })).status, 'REVIEW_REQUIRED');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: rotated.id } })).status, 'REVIEW_REQUIRED');
     const unavailable = await handoffs.createRequest(senderId, projectId, { recipientId, grantId: grant.id,
       publicTitle: 'Missing key', privateBody: 'private', verificationClaim: content, idempotencyKey: randomUUID() });
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: unavailable.id } }), 0);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: unavailable.id } })).reviewReason, 'Upstage 확인 불가');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: unavailable.id } })).reviewReason, 'Upstage 확인 불가');
     await store.save('sk-fake-worker-key-v2');
     await worker.wakeUnavailableJobs();
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: unavailable.id } })).status, 'PENDING');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: unavailable.id } })).status, 'PENDING');
     onConfirm = async () => true;
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: unavailable.id, source: 'CODEX_AUTO' } }), 1);
@@ -73,13 +73,13 @@ integrationTest('worker publishes only one minimal reply after explicit evidence
     };
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: changed.id } }), 0);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: changed.id } })).status, 'REVIEW_REQUIRED');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: changed.id } })).status, 'REVIEW_REQUIRED');
     const revoked = await handoffs.createRequest(senderId, projectId, { recipientId, grantId: grant.id,
       publicTitle: 'Later scope', privateBody: 'private', verificationClaim: content, idempotencyKey: randomUUID() });
     await prisma.mcpGrant.update({ where: { id: grant.id }, data: { revokedAt: new Date() } });
     await worker.processPendingJobs();
     assert.equal(await prisma.handoffReply.count({ where: { requestId: revoked.id } }), 0);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: revoked.id } })).status, 'REVIEW_REQUIRED');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: revoked.id } })).status, 'REVIEW_REQUIRED');
     assert.ok(!JSON.stringify(await handoffs.listMine(senderId, projectId)).includes('현재 요청 권한'));
     assert.ok(JSON.stringify(await handoffs.listMine(recipientId, projectId)).includes('현재 요청 권한'));
   } finally {

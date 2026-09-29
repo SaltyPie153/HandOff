@@ -25,7 +25,8 @@ it('renders public title and published reply without fetching private details fo
 it('requires a recipient preview before publishing to the whole team', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
     id: requestId, projectId, publicTitle: '일정 확인', senderId: 'sender', recipientId,
-    privateBody: '당사자 전용 세부', version: 1, replies: [], job: { status: 'REVIEW_REQUIRED', reviewReason: '근거 부족' }
+    privateBody: '당사자 전용 세부', version: 1, currentVersion: 1, versionId:'v1',status:'AWAITING_REVIEW',canRespond:true,response:null,
+    versions:[{version:1,status:'AWAITING_REVIEW',createdAt:'2026-09-29T00:00:00Z'}], replies: [], job: { status: 'REVIEW_REQUIRED', reviewReason: '근거 부족' }
   }), { status: 200 })).mockResolvedValueOnce(new Response(JSON.stringify({ id: 'reply' }), { status: 201 }));
   vi.stubGlobal('fetch', fetchMock);
   render(<HandoffRequestPage projectId={projectId} requestId={requestId} viewerId={recipientId} />);

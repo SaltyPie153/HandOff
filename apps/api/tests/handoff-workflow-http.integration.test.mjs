@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
+import { Test } from '@nestjs/testing';
+import { AppModule } from '../dist/src/app.module.js';
+import { PrismaService } from '../dist/src/database/prisma.service.js';
+import { AuthRepository } from '../dist/src/auth/auth.repository.js';
+const integration=process.env.NODE_ENV==='test'&&process.env.DATABASE_URL?test:test.skip;
+
+integration('HTTP confines human responses and notices to sessions and participants, MCP only resends',async()=>{
+ const db=new PrismaService({databaseUrl:process.env.DATABASE_URL}),auth=new AuthRepository(db);
+ const [a,b,c,p]=Array.from({length:4},()=>randomUUID()); let app;
+ try{
+  await db.user.createMany({data:[a,b,c].map(id=>({id,status:'APPROVED'}))});
+  await db.project.create({data:{id:p,name:'HTTP',creatorId:a,memberships:{create:[a,b,c].map(userId=>({userId,role:userId===c?'MANAGER':'MEMBER'}))}}});
+  const sessions=await Promise.all([a,b,c].map(id=>auth.issueSession(id)));
+  app=(await Test.createTestingModule({imports:[AppModule.register({nodeEnv:'test',apiPort:0,webPort:0,dbPort:55438,databaseName:'handoff_test',databaseHost:'127.0.0.1',postgresUser:'handoff',postgresPassword:'unused',databaseUrl:process.env.DATABASE_URL})]}).compile()).createNestApplication();
+  app.useLogger(['error']);
+  await app.listen(0,'127.0.0.1'); const base=await app.getUrl();
+  const call=(path,method='GET',body,who=0,csrf=true,bearer)=>fetch(base+path,{method,headers:{...(who===null?{}:{Cookie:`ho_session=${sessions[who].token}`}),...(csrf&&who!==null?{'X-CSRF-Token':sessions[who].csrf}:{}),...(bearer?{Authorization:`Bearer ${bearer}`}:{ }),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+  const grant=await call('/api/mcp/grants','POST',{projectId:p}).then(r=>r.json());
+  assert.equal(typeof grant.token,'string','grant issued');
+  const sent=await call('/api/mcp/requests','POST',{projectId:p,recipientId:b,publicTitle:'title',privateBody:'secret',idempotencyKey:randomUUID()},null,false,grant.token).then(r=>r.json());
+  assert.equal(typeof sent.id,'string','MCP initial request created');
+  const path=`/api/projects/${p}/requests/${sent.id}`,input={version:1,action:'REQUEST_CHANGES',comment:'B private comment',idempotencyKey:randomUUID()};
+  const accepted=await call(path+'/responses','POST',input,1);
+  assert.equal(accepted.status,201,'B can request changes through the session endpoint');
+  const noCsrf=await call(path+'/responses','POST',input,1,false);
+  assert.equal(noCsrf.status,403,await noCsrf.text());
+  assert.equal((await call(path+'/responses','POST',input,null,false,grant.token)).status,401);
+  for(const who of [0,2]) assert.equal((await call(path+'/responses','POST',input,who)).status,404);
+  assert.equal((await call(path+'/responses','POST',{...input,version:0},1)).status,400);
+  assert.equal((await call(path+'/responses','POST',{...input,version:1.5},1)).status,400);
+  assert.equal((await call(path+'/responses','POST',{...input,action:'UNKNOWN'},1)).status,400);
+  assert.equal((await call(path+'/responses','POST',{...input,comment:' '},1)).status,400);
+  const detail=await call(path).then(r=>r.json()); assert.equal(detail.response.comment,input.comment);
+  const feed=await call(`/api/projects/${p}/feed`,'GET',undefined,2).then(r=>r.json());
+  for(const field of ['senderId','recipientId','response','status','privateBody']) assert.ok(!(field in feed[0]));
+  assert.ok(!JSON.stringify(feed).includes(input.comment));
+  assert.equal((await call(path+'/versions/1','GET',undefined,2)).status,404);
+  const revision=await call(`/api/mcp/requests/${sent.id}/versions`,'POST',{expectedVersion:1,privateBody:'v2',idempotencyKey:randomUUID()},null,false,grant.token);
+  assert.equal(revision.status,201); assert.equal((await revision.json()).version,2);
+  assert.equal((await call(path+'/responses','POST',{version:1,action:'ACKNOWLEDGE',idempotencyKey:randomUUID()},1)).status,409);
+  const historical=await call(path+'/versions/1'); assert.equal(historical.headers.get('cache-control'),'no-store'); assert.equal((await historical.json()).privateBody,'secret');
+  const notes=await call(`/api/projects/${p}/notifications`).then(r=>r.json()); assert.equal(notes.length,1);
+  assert.equal((await call(`/api/projects/${p}/notifications/${notes[0].id}/read`,'POST',{},2)).status,404);
+  assert.equal((await call(`/api/projects/${p}/notifications/${notes[0].id}/read`,'POST',{},0)).status,201);
+  await call(`/api/mcp/grants/${grant.id}`,'DELETE');
+  assert.equal((await call(`/api/mcp/requests/${sent.id}/versions`,'POST',{expectedVersion:2,privateBody:'v3',idempotencyKey:randomUUID()},null,false,grant.token)).status,401);
+  await db.projectMembership.delete({where:{projectId_userId:{projectId:p,userId:b}}});
+  assert.equal((await call(path+'/responses','POST',{version:2,action:'ACKNOWLEDGE',idempotencyKey:randomUUID()},1)).status,404);
+  assert.equal((await call(`/api/projects/${p}/notifications`,'GET',undefined,1)).status,404);
+ }finally{await app?.close();await db.project.deleteMany({where:{id:p}});await db.user.deleteMany({where:{id:{in:[a,b,c]}}});await db.$disconnect();}
+});
