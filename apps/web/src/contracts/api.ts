@@ -5,7 +5,7 @@ export type ProposalKind='INITIAL'|'CHANGE'|'RETIRE';
 export const kindLabel:Record<ProposalKind,string>={INITIAL:'신규',CHANGE:'변경',RETIRE:'폐기'};
 export type ContractCard={id:string;publicTitle:string;status:'UNCONFIRMED'|'ACTIVE'|'RETIRED';confirmedAt:string|null;retiredAt:string|null;canOpenProposal:boolean};
 export type ConfirmedSnapshot={proposalId:string;versionId:string;version:number;body:string;confirmedAt:string};
-export type ContractDetail=ContractCard&{version:number|null;body:string|null;history:ConfirmedSnapshot[];lastConfirmed:ConfirmedSnapshot|null;retirement:{versionId:string;version:number;reason:string;confirmedAt:string}|null;previousContractId:string|null};
+export type ContractDetail=ContractCard&{version:number|null;body:string|null;history:ConfirmedSnapshot[];lastConfirmed:ConfirmedSnapshot|null;retirement:{versionId:string;version:number;reason:string;confirmedAt:string}|null;previousContractId:string|null;hasOpenProposal:boolean;openProposalId:string|null};
 export type ProposalItem={proposalId:string;contractId:string;kind:ProposalKind;lifecycle:'OPEN'|'CONFIRMED'|'WITHDRAWN';publicTitle:string;currentVersion:number;version:number;status:VersionStatus;createdAt:string};
 export type ProposalDetail=Omit<ProposalItem,'createdAt'>&{senderId:string;recipientId:string;versionId:string;proposedBody:string;blocked:boolean;canRespond:boolean;canRevise:boolean;canWithdraw:boolean;baselineVersionId:string|null;previousProposalId:string|null;withdrawal:{actorId:string;reason:string;withdrawnAt:string}|null;
  participants:Array<{userId:string;role:'SENDER'|'RECIPIENT'|'REQUIRED_PM'|'REFERENCE_PM';displayName:string}>;

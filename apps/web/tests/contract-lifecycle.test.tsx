@@ -2,6 +2,7 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,expect,it,vi} from 'vitest';
 import {ContractProposalPage} from '../src/contracts/ContractProposalPage';
 import {ContractDetailPage} from '../src/contracts/ContractDetailPage';
+import {ContractInboxPage} from '../src/contracts/ContractInboxPage';
 afterEach(()=>{cleanup();vi.unstubAllGlobals();window.history.replaceState({},'','/');});
 const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status});
 const initial={contractId:'contract',proposalId:'proposal',kind:'RETIRE',lifecycle:'OPEN',baselineVersionId:'base',previousProposalId:null,withdrawal:null,publicTitle:'폐기 검토',senderId:'A',recipientId:'B',currentVersion:1,versionId:'v1',version:1,proposedBody:'폐기할 이유',status:'IN_REVIEW',blocked:false,canRespond:true,canRevise:true,canWithdraw:true,participants:[],versions:[{version:1,status:'IN_REVIEW',createdAt:'2026-09-30T00:00:00Z'}],responses:[]};
@@ -35,4 +36,14 @@ it.each(['reference','past','closed'])('%s has no human withdrawal control',asyn
 it('retired public detail labels last body as history with no active terms',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>json({...publicDetail,status:'RETIRED',version:null,body:null,retiredAt:'2026-09-30T00:00:00Z',lastConfirmed:publicDetail.history[0],retirement:{reason:'종료 합의',confirmedAt:'2026-09-30T00:00:00Z'}})));
  render(<ContractDetailPage projectId="p" contractId="contract"/>);expect(await screen.findByText('현재 유효 계약 없음')).toBeVisible();expect(screen.getByText('종료 합의')).toBeVisible();expect(screen.getByText('기존 본문')).toBeVisible();expect(screen.queryByText(/팀 공개 확정 계약 · 버전/)).not.toBeInTheDocument();
+});
+it.each([null,'open-proposal'])('public detail shows pending work with an authorized link only: %s',async openProposalId=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>json({...publicDetail,lastConfirmed:publicDetail.history[0],hasOpenProposal:true,openProposalId})));
+ render(<ContractDetailPage projectId="p" contractId="contract"/>);expect(await screen.findByText('검토 중인 제안이 있습니다. 합의 전까지 현재 계약이 유지됩니다.')).toBeVisible();
+ if(openProposalId)expect(screen.getByRole('link',{name:'진행 중인 제안 검토'})).toHaveAttribute('href','/projects/p/contract-proposals/open-proposal');else expect(screen.queryByRole('link',{name:'진행 중인 제안 검토'})).not.toBeInTheDocument();
+});
+it('inbox distinguishes initial, change and retirement sharing the same version number',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async(url:string)=>json(url.endsWith('contract-summary')?{needsReview:0,needsChanges:0,unreadNotifications:0}:url.endsWith('contract-notifications')?[]:['INITIAL','CHANGE','RETIRE'].map((kind,i)=>({proposalId:'p'+i,contractId:'c',kind,publicTitle:'동일 제목',version:1,status:'CONFIRMED',createdAt:'2026-09-30T00:00:00Z'})))));
+ render(<ContractInboxPage projectId="p"/>);
+ for(const kind of ['신규','변경','폐기'])expect(await screen.findByRole('link',{name:`동일 제목 · ${kind} · 버전 1 · 확정`})).toBeVisible();
 });

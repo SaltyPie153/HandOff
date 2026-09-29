@@ -1,19 +1,19 @@
 # 제품 검증 기준
 
-[제품 명세](../product/spec.md)의 14장 기준. 인증·프로젝트 룸·MCP 요청·근거 판정과 계약 최초 합의를 검증한다. 자동 검사의 성공을 계약 변경·폐기·첨부·실제 모델 호출·운영 기준의 완료로 해석하지 않는다. 기술·운영 정책은 [기술 설계](../product/technical-design.md)를 따른다.
+[제품 명세](../product/spec.md)의 14장 기준. 인증·프로젝트 룸·MCP 요청·근거 판정과 계약 합의·변경·철회·폐기를 검증한다. 자동 검사의 성공을 첨부·실제 모델 호출·운영 기준의 완료로 해석하지 않는다. 기술·운영 정책은 [기술 설계](../product/technical-design.md)를 따른다.
 
 ## 현재 구성된 앱 기본 골격 검사
 
 | 명령 | 확인 범위 |
 |---|---|
 | `npm run build`, `npm run typecheck`, `npm test` | 웹·API·MCP 빌드, 타입 및 DB 비의존 테스트 |
-| `npm run test:integration` | 빈 시험 DB migration 뒤 health·probe·인증·프로젝트 권한·MCP 요청·근거·배경 작업 및 최초 계약 합의·접근·동시성 통합 검사 |
-| `npm run test:e2e` | 격리 브라우저·API·DB의 인증, 프로젝트 접근, MCP 요청·공개 회신·토큰 철회, 네 회원 계약 수정·동의·최초 확정 공개, health·probe 정상·장애·복구 |
+| `npm run test:integration` | 빈 시험 DB migration 뒤 health·probe·인증·프로젝트 권한·MCP 요청·근거·배경 작업 및 계약 합의·변경·철회·폐기·접근·동시성 통합 검사 |
+| `npm run test:e2e` | 격리 브라우저·API·DB의 인증, 프로젝트 접근, MCP 요청·공개 회신·토큰 철회, 네 회원 계약 수정·동의·확정·변경·철회·폐기 공개 이력, health·probe 정상·장애·복구 |
 | `pwsh -NoProfile -File scripts/check-harness.ps1` | 필수 문서·로컬 링크 검사. 제품 명령은 실행하지 않고 `PRODUCT: NOT_RUN` |
 | `pwsh -NoProfile -File scripts/test-harness.ps1` | Harness 검사기의 격리 fixture와 제품 결과 전파 시나리오 |
 | `pwsh -NoProfile -File scripts/check-product.ps1` 또는 `scripts/check-harness.ps1 -RequireProduct` | build → typecheck → test → test:integration → test:e2e; 하위 실패 코드 전달 |
 
-두 격리 프로젝트의 실행기는 각자 생성한 시험 전용 volume의 정리를 시도하고 정리 실패를 보고한다. 개발 DB의 종료·초기화를 지시하지 않는다. [MCP Quickstart](../../specs/004-mcp-handoff/quickstart.md), [프로젝트 룸 Quickstart](../../specs/003-project-room-access/quickstart.md), [계약 Quickstart](../../specs/006-contract-agreement/quickstart.md)의 흐름을 확인한다. 자동 검사는 실제 Google·Discord OAuth 공급자 로그인, 계약 변경·폐기·첨부 권한, 실제 모델 API·비공개 GitHub 자격, Discord 알림, 운영 GCP 백업과 별도 환경 복구를 포함하지 않는다. 특히 R25는 시험 DB의 3회 보존만으로 통과 처리할 수 없다.
+두 격리 프로젝트의 실행기는 각자 생성한 시험 전용 volume의 정리를 시도하고 정리 실패를 보고한다. 개발 DB의 종료·초기화를 지시하지 않는다. [MCP Quickstart](../../specs/004-mcp-handoff/quickstart.md), [프로젝트 룸 Quickstart](../../specs/003-project-room-access/quickstart.md), [계약 Quickstart](../../specs/006-contract-agreement/quickstart.md)의 흐름을 확인한다. 자동 검사는 실제 Google·Discord OAuth 공급자 로그인, 첨부 권한, 실제 모델 API·비공개 GitHub 자격, Discord 알림, 운영 GCP 백업과 별도 환경 복구를 포함하지 않는다. 특히 R25는 시험 DB의 3회 보존만으로 통과 처리할 수 없다.
 
 ## 계약 수명주기 검증 추가
 
@@ -37,7 +37,7 @@
 | R11 | 다른 팀·프로젝트의 API와 첨부 접근을 차단한다. | 프로젝트 룸 API 차단 통합·E2E 검증. 첨부는 미구현 |
 | R12 | Codex 요청 전송·조회·근거 기반 사실 회신은 사람의 확인·계약 동의로 처리되지 않고, 연동 자격으로 그 상태 변경 API를 호출할 수 없다. | 사람 확인·계약 동의의 세션/CSRF 제한, MCP bearer 거부, 제안 직후 동의0건 및 MCP 동의 도구 부재 검증 |
 | R13 | 철회와 마지막 동의를 동시에 시도하면 하나만 성공한다. 철회된 버전은 확정되지 않고, 확정된 버전은 철회되지 않는다. | 실제 DB lock 대기·양쪽 승리 순서를 강제한 통합검사 통과 |
-| R14 | 수정 요청·확정·철회·관리 종료된 버전에는 새로운 응답을 저장하지 않는다. 동일 응답 재시도는 기존 결과만 반환하며 동의에서 수정 요청으로 바꾸는 호출은 거부한다. | 일반 요청과 최초 계약의 종료 버전 응답 거부·동일 재시도 반환 검증. 철회·관리 종료 미구현 |
+| R14 | 수정 요청·확정·철회·관리 종료된 버전에는 새로운 응답을 저장하지 않는다. 동일 응답 재시도는 기존 결과만 반환하며 동의에서 수정 요청으로 바꾸는 호출은 거부한다. | 일반 요청과 계약의 종료 버전 응답 거부·동일 재시도 반환 검증. 계약 철회 구현·검증. 일반 요청 철회·관리 종료 미구현 |
 | R15 | 송신자·수신자·필수 PM이 접근 권한을 잃으면 미완료 요청은 담당자 변경 필요가 된다. 관리 종료와 연결 요청 생성 후에도 이전 확인을 승계하지 않고 기존 확정 계약을 유지한다. 참조자 이탈은 검토를 막지 않는다. | 미구현/미검증 |
 | R16 | 폐기 검토 중에는 기존 계약이 유효하며, 폐기 확정 후 웹·Codex의 유효 계약 목록에서는 제외된다. 직접 조회에서는 폐기 상태와 과거 기록을 구분해 보여준다. | RETIRED 현행 포인터 제거·MCP 유효 목록 제외·공개 이력 및 웹 과거 표시 검사 통과. 웹 전체 목록은 폐기 상태를 표시 |
 | R17 | 서버 저장 직후 응답 유실을 재현하고 동일 전송을 재시도하면 요청·버전·알림 이벤트 수가 늘지 않는다. 다른 탭의 동일 초안 리비전 전송도 중복 발행되지 않는다. | 일반 요청과 계약의 동일 키 응답·전송/재전송·알림 중복 방지, PM 순서 정규화, 웹 오류 재시도 키·의견 보존 검증. 서버 저장 초안 리비전 미구현 |

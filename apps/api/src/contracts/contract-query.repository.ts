@@ -22,12 +22,13 @@ export class ContractQueryRepository{
   return this.prisma.$transaction(async tx=>{
    await tx.$queryRaw`SELECT id FROM development_contracts WHERE id=${contractId}::uuid AND project_id=${projectId}::uuid FOR SHARE`;
    await this.access(tx,viewerId,projectId,grantId);
-   const r=await tx.developmentContract.findFirst({where:{id:contractId,projectId,status:{in:['ACTIVE','RETIRED']}},include:{currentVersion:true,versions:{where:{status:'CONFIRMED'},orderBy:{confirmedAt:'asc'},include:{proposal:{select:{kind:true}}}},proposal:{select:{versions:{where:{participants:{some:{userId:viewerId}}},select:{id:true},take:1}}}}});
+   const r=await tx.developmentContract.findFirst({where:{id:contractId,projectId,status:{in:['ACTIVE','RETIRED']}},include:{currentVersion:true,versions:{where:{status:'CONFIRMED'},orderBy:{confirmedAt:'asc'},include:{proposal:{select:{kind:true}}}},proposal:{select:{id:true,lifecycle:true,currentVersion:true,versions:{where:{participants:{some:{userId:viewerId}}},orderBy:{version:'desc'},select:{id:true,version:true},take:1}}}}});
    if(!r)throw new NotFoundException();
    await tx.contractReadAudit.createMany({data:r.versions.map(v=>({userId:viewerId,grantId,versionId:v.id}))});
    const history=r.versions.filter(v=>v.proposal.kind!=='RETIRE').map(v=>({proposalId:v.proposalId,versionId:v.id,version:v.version,body:v.proposedBody,confirmedAt:v.confirmedAt!.toISOString()}));
    const retirement=r.versions.find(v=>v.id===r.retirementVersionId);
-   return {id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),retiredAt:iso(r.retiredAt),previousContractId:r.previousContractId,canOpenProposal:r.proposal.some(p=>p.versions.length>0),version:r.status==='ACTIVE'?r.currentVersion!.version:null,body:r.status==='ACTIVE'?r.currentVersion!.proposedBody:null,history,lastConfirmed:history.find(v=>v.versionId===r.lastConfirmedVersionId)??null,retirement:retirement?{versionId:retirement.id,version:retirement.version,reason:retirement.proposedBody,confirmedAt:retirement.confirmedAt!.toISOString()}:null};
+   const open=r.proposal.find(p=>p.lifecycle==='OPEN');
+   return {id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),retiredAt:iso(r.retiredAt),previousContractId:r.previousContractId,hasOpenProposal:!!open,openProposalId:open?.versions.some(v=>v.version===open.currentVersion)?open.id:null,canOpenProposal:r.proposal.some(p=>p.versions.length>0),version:r.status==='ACTIVE'?r.currentVersion!.version:null,body:r.status==='ACTIVE'?r.currentVersion!.proposedBody:null,history,lastConfirmed:history.find(v=>v.versionId===r.lastConfirmedVersionId)??null,retirement:retirement?{versionId:retirement.id,version:retirement.version,reason:retirement.proposedBody,confirmedAt:retirement.confirmedAt!.toISOString()}:null};
   });
  }
  async listMine(viewerId:string,projectId:string){
