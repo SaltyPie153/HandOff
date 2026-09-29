@@ -49,7 +49,7 @@ Node.js24.19.0, Docker PostgreSQL의 격리 시험 환경. 원래 수동 앱·DB
 
 ## 한계
 
-- Vite 번들518.27KB 경고, 일부 Prisma/pg 조회에서 pg9 API deprecation 경고가 있으나 해당 검사들은 성공했다.
+- 최종 Vite 번들518.80KB 경고, 일부 Prisma/pg 조회에서 pg9 API deprecation 경고가 있으나 해당 검사들은 성공했다.
 - 실제 사용자 OAuth, 실제 Solar 호출, 운영 배포·백업 복구, 대규모 성능은 이번 자동 검사에 포함하지 않는다.
 - 담당자 교체·관리 종료·첨부·Discord 외부 알림·계약을 자동 판정 근거로 연결하는 기능은 후속 범위다.
 - 사용자 DB에0010을 적용하지 않았고, 현재 수동 앱을 새 코드로 교체하지 않았다. push·PR·merge도 실행하지 않았다.
