@@ -7,6 +7,8 @@ export function ContractDetailPage({projectId,contractId}:{projectId:string;cont
   {detail&&<><Typography component="h1" variant="h4">{detail.publicTitle}</Typography>
    {detail.status==='ACTIVE'?<><Typography>팀 공개 확정 계약 · 버전 {detail.version}</Typography><Typography>확정 시각: {detail.confirmedAt&&new Date(detail.confirmedAt).toLocaleString()}</Typography><Typography sx={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{detail.body}</Typography></>:<><Alert severity="warning">현재 유효 계약 없음</Alert><Typography>폐기 시각: {detail.retiredAt&&new Date(detail.retiredAt).toLocaleString()}</Typography><Typography component="h2" variant="h6">합의된 폐기 이유</Typography><Typography sx={{whiteSpace:'pre-wrap'}}>{detail.retirement?.reason}</Typography></>}
    {detail.previousContractId&&<Link href={`/projects/${projectId}/contracts/${detail.previousContractId}`}>이전 폐기 계약 보기</Link>}
+   {detail.hasOpenProposal&&<Alert severity="info">검토 중인 제안이 있습니다. 합의 전까지 현재 계약이 유지됩니다.</Alert>}
+   {detail.openProposalId&&<Link href={`/projects/${projectId}/contract-proposals/${detail.openProposalId}`}>진행 중인 제안 검토</Link>}
    {detail.canOpenProposal&&<Link href={`/projects/${projectId}/contract-inbox`}>내 제안 검토·진행 상태 보기</Link>}
    {!!detail.history?.length&&<Typography component="h2" variant="h6">확정 이력 (과거 기록 포함)</Typography>}
    {detail.history?.filter(v=>detail.status!=='ACTIVE'||v.versionId!==detail.lastConfirmed?.versionId).map(v=><Stack key={v.versionId}><Typography>제안 {v.proposalId} · 버전 {v.version} · {new Date(v.confirmedAt).toLocaleString()}</Typography><Typography sx={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{v.body}</Typography></Stack>)}
