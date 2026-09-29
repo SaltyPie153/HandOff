@@ -1,12 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {fixture,action,status} from './contract-fixture.mjs';
+import {fixture,action,status,sessionFlow} from './contract-fixture.mjs';
 const integration=process.env.NODE_ENV==='test'&&process.env.DATABASE_URL?test:test.skip;
 integration('contract human unanimity, immutable revision, atomic retries and membership gates',async()=>{
  const mod=await import('../dist/src/contracts/contract.repository.js').catch(()=>({}));
  assert.equal(typeof mod.ContractRepository,'function');
- const f=await fixture();const {db,a,b,pm,ref,c,p,grant,input}=f;const repo=new mod.ContractRepository(db);
+ const f=await fixture();const {db,a,b,pm,ref,c,p,grant,input}=f;const repo=sessionFlow(mod.ContractRepository,f);
  try{
   const r=await repo.propose(a,p,grant.id,input);
   assert.equal(await db.contractResponse.count({where:{proposalId:r.proposalId}}),0);
@@ -46,7 +46,7 @@ integration('contract human unanimity, immutable revision, atomic retries and me
 });
 integration('last agreement and revision serialize on the contract; a concurrent change cannot coexist with confirmation',async()=>{
  const {ContractRepository}=await import('../dist/src/contracts/contract.repository.js');const f=await fixture();
- const {db,a,b,p,grant,input}=f, repo=new ContractRepository(db);
+ const {db,a,b,p,grant,input}=f, repo=sessionFlow(ContractRepository,f);
  try{
   for(const kind of ['revision','changes']){
    const r=await repo.propose(a,p,grant.id,{...input,requiredPmIds:[],referencePmIds:[],idempotencyKey:randomUUID()});

@@ -90,6 +90,9 @@ test('one probe survives three complete ordinary restarts', async ({ page }) => 
     probeAttempted = true;
     await probe('create', id, value);
     for (let cycle = 1; cycle <= 3; cycle++) {
+      // Disconnect Vite HMR before stopping the web server; its reconnect reload
+      // otherwise races the explicit health navigation after restart.
+      await page.goto('about:blank');
       webStopAttempted = true;
       await control(controlUrl, 'web-stop');
       await waitAvailable(webUrl, false);

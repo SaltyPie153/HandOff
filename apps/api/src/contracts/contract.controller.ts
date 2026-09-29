@@ -21,7 +21,7 @@ export class ContractController{
  @Get('contract-notifications') @Header('Cache-Control','no-store')
  async notifications(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string){return this.queries.notifications((await this.auth.requireSession(req)).userId,projectId);}
  @Post('contract-proposals/:proposalId/responses')
- async respond(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('proposalId',new ParseUUIDPipe()) id:string,@Body() raw:ContractResponseInput){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.flow.respond(session.userId,projectId,id,raw);}
+ async respond(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('proposalId',new ParseUUIDPipe()) id:string,@Body() raw:ContractResponseInput){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.flow.respond(session.userId,projectId,id,raw,{tokenHash:session.tokenHash,csrfHash:session.csrfHash});}
  @Post('contract-notifications/:id/read')
  async read(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('id',new ParseUUIDPipe()) id:string){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.queries.markRead(session.userId,projectId,id);}
 }

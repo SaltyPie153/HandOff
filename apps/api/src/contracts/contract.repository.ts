@@ -1,4 +1,4 @@
-import {ConflictException,NotFoundException} from '@nestjs/common';
+import {ConflictException,NotFoundException,UnauthorizedException} from '@nestjs/common';
 import {createHash} from 'node:crypto';
 import {PrismaService} from '../database/prisma.service.js';
 import type {Prisma,ContractProposalVersion,ContractResponse} from '../generated/prisma/client.js';
@@ -66,7 +66,7 @@ export class ContractRepository{
    await notify(tx,version.id,rows.map(p=>p.userId),'REVISION_RECEIVED');return receipt(version);
   });
  }
- async respond(actorId:string,projectId:string,proposalId:string,input:ContractResponseInput):Promise<ResponseReceipt>{
+ async respond(actorId:string,projectId:string,proposalId:string,input:ContractResponseInput,session:{tokenHash:string;csrfHash:string}):Promise<ResponseReceipt>{
   const value=normalizeResponse(input),{idempotencyKey,...payload}=value,payloadHash=hash(payload);
   return this.prisma.$transaction(async tx=>{
    const proposal=await lockProposal(tx,proposalId,projectId);
@@ -75,6 +75,12 @@ export class ContractRepository{
    // Keep actor access separate from required-party blockage and use a stable lock order.
    if(!await tx.projectMembership.count({where:{projectId,userId:actorId,user:{status:'APPROVED'}}}))throw new NotFoundException();
    await lockRequired(tx,projectId,target.participants,actorId);
+   if(!session)throw new UnauthorizedException();
+   // Keep the authenticated session alive through commit, after any contract
+   // lock wait. Logout must either win first or wait for this response commit.
+   await tx.$queryRaw`SELECT token_hash FROM auth_sessions WHERE token_hash=${session.tokenHash} FOR SHARE`;
+   const liveSession=await tx.authSession.findFirst({where:{tokenHash:session.tokenHash,csrfHash:session.csrfHash,userId:actorId}});
+   if(!liveSession||liveSession.expiresAt<=new Date())throw new UnauthorizedException();
    const old=await tx.contractResponse.findUnique({where:{proposalId_actorId_responseKey:{proposalId,actorId,responseKey:idempotencyKey}}});
    if(old){if(old.payloadHash!==payloadHash)throw new ConflictException('Idempotency key already used');return responseReceipt(old,value.version);}
    if(proposal.currentVersion!==value.version||target.status!=='IN_REVIEW')throw new ConflictException('Review the latest proposal');
