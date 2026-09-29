@@ -38,7 +38,7 @@ export class ContractRepository{
    await requireGrant(tx,grantId,actorId,projectId);
    const old=await tx.contractProposal.findUnique({where:{senderId_sendKey:{senderId:actorId,sendKey:idempotencyKey}},include:{versions:{where:{version:1}}}});
    if(old){if(old.payloadHash!==payloadHash)throw new ConflictException('Idempotency key already used');return receipt(old.versions[0]);}
-   const contract=await tx.developmentContract.create({data:{projectId,publicTitle:value.publicTitle}});
+   const contract=await tx.developmentContract.create({data:{projectId,publicTitle:value.publicTitle,senderId:actorId,recipientId:value.recipientId}});
    const proposal=await tx.contractProposal.create({data:{contractId:contract.id,senderId:actorId,recipientId:value.recipientId,sendKey:idempotencyKey,payloadHash}});
    const version=await tx.contractProposalVersion.create({data:{contractId:contract.id,proposalId:proposal.id,version:1,proposedBody:value.proposedBody,sendKey:idempotencyKey,payloadHash,participants:{create:rows}}});
    await notify(tx,version.id,rows.map(p=>p.userId),'PROPOSAL_RECEIVED');return receipt(version);
@@ -94,7 +94,8 @@ export class ContractRepository{
     if(await tx.contractResponse.count({where:{versionId:target.id,action:'AGREE',actorId:{in:required.map(p=>p.userId)}}})===required.length){
      const confirmedAt=new Date();
      await tx.contractProposalVersion.update({where:{id:target.id},data:{status:'CONFIRMED',confirmedAt}});
-     await tx.developmentContract.update({where:{id:proposal.contractId},data:{status:'ACTIVE',currentVersionId:target.id,confirmedAt}});
+     await tx.developmentContract.update({where:{id:proposal.contractId},data:{status:'ACTIVE',currentVersionId:target.id,lastConfirmedVersionId:target.id,confirmedAt}});
+     await tx.contractProposal.update({where:{id:proposal.id},data:{lifecycle:'CONFIRMED'}});
      await notify(tx,target.id,target.participants.map(p=>p.userId),'CONFIRMED');
     }
    }

@@ -11,7 +11,8 @@ export async function fixture(){
  const grant=await db.mcpGrant.create({data:{userId:a,projectId:p,tokenHash:createHash('sha256').update(randomUUID()).digest('hex'),expiresAt:new Date(Date.now()+600000)}});
  const input={recipientId:b,publicTitle:'Public contract title',proposedBody:'private body v1',requiredPmIds:[pm],referencePmIds:[ref],idempotencyKey:randomUUID()};
  return {db,a,b,pm,ref,c,p,grant,input,applicationName,sessionFor:id=>sessions.get(id),async close(){
-  await db.developmentContract.updateMany({where:{projectId:p},data:{status:'UNCONFIRMED',currentVersionId:null,confirmedAt:null}});
+  await db.developmentContract.updateMany({where:{projectId:p},data:{status:'UNCONFIRMED',currentVersionId:null,lastConfirmedVersionId:null,retirementVersionId:null,retiredAt:null,previousContractId:null,confirmedAt:null}});
+  await db.contractProposal.updateMany({where:{contract:{projectId:p}},data:{baselineVersionId:null,kind:'INITIAL',previousProposalId:null}});
   await db.project.delete({where:{id:p}});await db.user.deleteMany({where:{id:{in:users}}});await db.$disconnect();
  }};
 }

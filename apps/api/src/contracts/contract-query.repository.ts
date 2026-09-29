@@ -15,7 +15,7 @@ export class ContractQueryRepository{
   return this.prisma.$transaction(async tx=>{
    await this.access(tx,viewerId,projectId,grantId);
    const rows=await tx.developmentContract.findMany({where:{projectId,...(activeOnly?{status:'ACTIVE' as const}:{})},orderBy:{createdAt:'desc'},select:{...publicSelect,proposal:{select:{versions:{where:{participants:{some:{userId:viewerId}}},select:{id:true},take:1}}}}});
-   return rows.map(r=>({id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),canOpenProposal:!!r.proposal?.versions.length}));
+   return rows.map(r=>({id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),canOpenProposal:r.proposal.some(p=>p.versions.length>0)}));
   });
  }
  async getPublic(viewerId:string,projectId:string,contractId:string,grantId?:string){
@@ -24,7 +24,7 @@ export class ContractQueryRepository{
    const r=await tx.developmentContract.findFirst({where:{id:contractId,projectId,status:'ACTIVE'},include:{currentVersion:true,proposal:{select:{versions:{where:{participants:{some:{userId:viewerId}}},select:{id:true},take:1}}}}});
    if(!r?.currentVersion)throw new NotFoundException();
    await tx.contractReadAudit.create({data:{userId:viewerId,grantId,versionId:r.currentVersion.id}});
-   return {id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),canOpenProposal:!!r.proposal?.versions.length,version:r.currentVersion.version,body:r.currentVersion.proposedBody};
+   return {id:r.id,publicTitle:r.publicTitle,status:r.status,confirmedAt:iso(r.confirmedAt),canOpenProposal:r.proposal.some(p=>p.versions.length>0),version:r.currentVersion.version,body:r.currentVersion.proposedBody};
   });
  }
  async listMine(viewerId:string,projectId:string){
