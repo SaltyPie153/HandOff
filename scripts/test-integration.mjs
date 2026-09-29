@@ -330,7 +330,9 @@ async function main() {
     await runFoundationDatabaseTest({ signal: controller.signal });
     environment = await createTestEnvironment({ withServices: true, signal: controller.signal });
     const files = await discoverIntegrationTests();
-    const tests = [...files, ...probeTests];
+    const sourceTests = (await readdir(join(apiRoot, 'tests'))).filter(name => name.endsWith('.integration.test.mjs'))
+      .sort().map(name => join(apiRoot, 'tests', name));
+    const tests = [...files, ...sourceTests, ...probeTests];
     const env = {
       ...environment.env,
       HANDOFF_TEST_PROJECT: environment.project,

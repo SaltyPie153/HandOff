@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, CircularProgress, Link, List, ListItem, Stack, Typography } from '@mui/material';
 import { loadRoom, ProjectApiError, type RoomView } from './api';
+import { HandoffNotifications } from '../handoff/HandoffNotifications';
 
 export function ProjectRoomPage({ id }: { id: string }) {
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -30,6 +31,7 @@ export function ProjectRoomPage({ id }: { id: string }) {
       <List>{room.members.map(member => <ListItem key={member.userId}>{member.displayName ?? member.userId} · {member.role === 'MANAGER' ? '관리 담당자' : '멤버'}</ListItem>)}</List>
       <Link href={`/projects/${id}/feed`}>팀 인수인계 피드</Link>
       <Link href={`/projects/${id}/inbox`}>내 받은함·보낸함</Link>
+      <HandoffNotifications projectId={id}/>
       {room.role === 'MANAGER' && <Link href={`/projects/${id}/members`}>멤버 관리</Link>}
       <Button onClick={() => void refresh()}>새로고침</Button>
       <Link href="/projects">프로젝트 선택으로</Link>

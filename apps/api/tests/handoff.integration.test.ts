@@ -35,10 +35,10 @@ integrationTest('private request stays between participants while title and publ
     await assert.rejects(handoffs.getPrivateRequest(teammateId, first.id));
     await assert.rejects(handoffs.getPrivateRequest(outsiderId, first.id));
     const replyKey = randomUUID();
-    const reply = await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', idempotencyKey: replyKey });
-    assert.equal((await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', idempotencyKey: replyKey })).id, reply.id);
+    const reply = await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', version: 1, idempotencyKey: replyKey });
+    assert.equal((await handoffs.publishReply(recipientId, first.id, { body: 'Implementation confirmed', source: 'HUMAN', version: 1, idempotencyKey: replyKey })).id, reply.id);
     assert.equal(await prisma.handoffReply.count({ where: { requestId: first.id } }), 1);
-    assert.equal((await prisma.handoffJob.findUniqueOrThrow({ where: { requestId: first.id } })).status, 'COMPLETED');
+    assert.equal((await prisma.handoffJob.findFirstOrThrow({ where: { requestId: first.id } })).status, 'COMPLETED');
     assert.equal((await handoffs.listFeed(teammateId, projectId))[0]?.replies[0]?.body, 'Implementation confirmed');
   } finally {
     if (projectId) await prisma.project.delete({ where: { id: projectId } });
@@ -101,10 +101,10 @@ integrationTest('MCP grant is scoped, revocable and cannot reveal the private re
     assert.equal((await request(`/api/projects/${projectId}/requests/${sent.id}`, { token: outsiderSession.token })).status, 404);
     assert.equal((await request(`/api/projects/${projectId}/requests/${sent.id}`, { token: recipientSession.token })).status, 200);
     assert.equal((await request(`/api/projects/${projectId}/requests/${sent.id}/replies`, {
-      method: 'POST', token: recipientSession.token, body: { body: 'Confirmed', idempotencyKey: randomUUID() }
+      method: 'POST', token: recipientSession.token, body: { body: 'Confirmed', version: 1, idempotencyKey: randomUUID() }
     })).status, 403);
     assert.equal((await request(`/api/projects/${projectId}/requests/${sent.id}/replies`, {
-      method: 'POST', token: recipientSession.token, csrf: recipientSession.csrf, body: { body: 'Confirmed', idempotencyKey: randomUUID() }
+      method: 'POST', token: recipientSession.token, csrf: recipientSession.csrf, body: { body: 'Confirmed', version: 1, idempotencyKey: randomUUID() }
     })).status, 201);
     const publicFeed = await request(`/api/projects/${projectId}/feed`, { token: teammateSession.token }).then(response => response.text());
     assert.ok(publicFeed.includes('Confirmed'));

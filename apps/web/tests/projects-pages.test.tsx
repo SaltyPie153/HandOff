@@ -35,10 +35,10 @@ it('submits one project and disables repeat submission while the request is pend
 });
 
 it('lets a manager see the empty room and clears stale roster after access loss', async () => {
-  const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ...room,
+  const roomFetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ...room,
     members: [{ userId: 'owner', displayName: '이전 룸 멤버 현황', role: 'MANAGER', joinedAt: room.createdAt }]
   }), { status: 200 })).mockResolvedValueOnce(new Response('', { status: 404 }));
-  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('fetch', vi.fn((url:string)=>url.endsWith('/handoff-summary')?Promise.resolve(new Response(JSON.stringify({needsReview:0,needsChanges:0,unreadNotifications:0}))):url.endsWith('/notifications')?Promise.resolve(new Response('[]')):roomFetch()));
   render(<ProjectRoomPage id={room.id} />);
   expect(await screen.findByText(/이전 룸 멤버 현황/)).toBeVisible();
   expect(screen.getByRole('link', { name: '팀 인수인계 피드' })).toHaveAttribute('href', `/projects/${room.id}/feed`);
