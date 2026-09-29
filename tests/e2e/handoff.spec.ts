@@ -62,7 +62,9 @@ test('MCP private request exposes only its title to teammates and a reviewed rep
     await teammate.goto(`/projects/${projectId}/feed`);
     await expect(teammate.getByText(/공개해도 되는 진행 상황/)).toBeVisible();
     await sender.goto('/settings');
+    const revoked = sender.waitForResponse(response => response.request().method() === 'DELETE' && new URL(response.url()).pathname.startsWith('/api/mcp/grants/'));
     await sender.getByRole('button', { name: '철회', exact: true }).click();
+    expect((await revoked).status()).toBe(200);
     expect((await send(randomUUID())).status).toBe(401);
     const removed = await sender.context().request.delete(`${origin}/api/projects/${projectId}/members/${teammateId}`, {
       headers: { 'X-CSRF-Token': credentials[0].csrf }
