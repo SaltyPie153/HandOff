@@ -39,7 +39,7 @@ Node.js24.19.0, Docker PostgreSQL17.11의 격리 시험 환경에서 실행했�
 - 기존 실행 앱을 보존하려고 별도 관리형 worktree와 전용 DB를 사용했다. 원래9578의 문서 브랜치·미추적 outputs는 보존했다. 새 기능은 기존 수동 시험 앱에 자동 적용하지 않았다.
 - 프로젝트 관례에 따라 작업 ledger를 `work/contract-agreement/resume.md`에 유지한다. work는 Git 제외되므로 공유 검증 근거는 이 문서와 커밋이다.
 - persistence 검사는 HMR이 연결된 탭을 유지하는 상황을 검사하지 않는다. DB 보존·실제 재시작은 계속 검사하며 health 장애 검사가 별도로 있다.
-- **Minor 후속 보강:** 기존 동의/재전송 경쟁 테스트가 두 호출 모두의 잠금 대기와 양쪽 승리 순서를 강제하지는 않는다. 결과 불변 조건과 코드 잠금은 검사했으며 알려진 제품 실패는 아니다. 새 세션 회귀 검사는 실제 lock 대기를 명시적으로 확인한다.
+- **2026-09-30 Minor 보강 완료:** 동의/재전송, 동의/수정 요청, 동의/멤버 제외의 양쪽 승리 순서를 강제하고 `pg_stat_activity`의 실제 Lock 대기를 확인한다. `node --env-file=work/contract-agreement/test.env --test apps/api/tests/contract-agreement.integration.test.mjs`를 Node24 helper로 실행해 exit0, 2/2 성공, skip0을 확인했다. 이번 변경은 테스트만이며 전체 suite를 다시 실행한 결과는 아니다.
 - 웹 번들513.81KB 경고가 있으나 빌드는 성공했다. 번들 분할은 이번 범위에서 변경하지 않았다.
 - 실제 OAuth·Solar 호출, 운영 배포·백업 복구, 대규모 데이터 성능은 이번에 검증하지 않았다. 현재4~5명 팀 기능 검증을 해당 운영 검증으로 대신하지 않는다.
 - 계약 확정 후 변경·철회·폐기·담당자 교체·첨부·Discord 알림·자동 판정 근거 연결은 후속 기능이다.
