@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {randomUUID,createHash} from 'node:crypto';
+import {PrismaService} from '../dist/src/database/prisma.service.js';
+import {HandoffRepository} from '../dist/src/handoff/handoff.repository.js';
+import {HandoffWorkflowRepository} from '../dist/src/handoff/handoff-workflow.repository.js';
+import {EvidenceService} from '../dist/src/evidence/evidence.service.js';
+import {HandoffBackgroundWorker} from '../dist/src/handoff/background-worker.js';
+const integration=process.env.NODE_ENV==='test'&&process.env.DATABASE_URL?test:test.skip;
+integration('late worker results cannot publish across a revision or a human response; old replies do not suppress v2',async()=>{
+ const oldKey=process.env.HANDOFF_EVIDENCE_KEY;process.env.HANDOFF_EVIDENCE_KEY='a'.repeat(64);
+ const db=new PrismaService({databaseUrl:process.env.DATABASE_URL}),requests=new HandoffRepository(db),flow=new HandoffWorkflowRepository(db),evidence=new EvidenceService(db);
+ const [a,b,p]=Array.from({length:3},()=>randomUUID());
+ try{
+  await db.user.createMany({data:[a,b].map(id=>({id,status:'APPROVED'}))});
+  await db.project.create({data:{id:p,name:'worker versions',creatorId:a,memberships:{create:[a,b].map(userId=>({userId,role:'MEMBER'}))}}});
+  const grant=await db.mcpGrant.create({data:{userId:a,projectId:p,tokenHash:createHash('sha256').update(randomUUID()).digest('hex'),expiresAt:new Date(Date.now()+600000)}});
+  const source=await evidence.registerLocal(b,p,'C:\\contracts\\version-test.md'),content='API_SCOPE: read-only';
+  await evidence.syncLocal(source.id,source.syncToken,'C:\\contracts\\version-test.md',content,createHash('sha256').update(content).digest('hex'));
+  let duringConfirm=async()=>{};
+  const agent={confirmExplicitClaim:async()=>{await duringConfirm();return true;}};
+  const store={read:async()=>({configured:true,key:'synthetic-test-key',generation:1}),withGeneration:async(_generation,fn)=>({unchanged:true,value:await fn()})};
+  const worker=new HandoffBackgroundWorker(db,evidence,agent,store);
+  const create=()=>requests.createRequest(a,p,{recipientId:b,grantId:grant.id,publicTitle:'title',privateBody:'private',verificationClaim:content,idempotencyKey:randomUUID()});
+  const first=await create();
+  duringConfirm=async()=>{await flow.resend(a,p,first.id,grant.id,{expectedVersion:1,privateBody:'v2',verificationClaim:content,idempotencyKey:randomUUID()});};
+  await worker.processPendingJobs(1);
+  assert.equal(await db.handoffReply.count({where:{requestId:first.id}}),0);
+  duringConfirm=async()=>{};
+  await worker.processPendingJobs(1);
+  assert.equal(await db.handoffReply.count({where:{requestId:first.id,version:{version:2}}}),1);
+  const second=await create();
+  duringConfirm=async()=>{await flow.respond(b,p,second.id,{version:1,action:'ACKNOWLEDGE',idempotencyKey:randomUUID()});};
+  await worker.processPendingJobs(1);
+  assert.equal(await db.handoffReply.count({where:{requestId:second.id}}),0);
+  const third=await create();
+  await requests.publishReply(b,third.id,{version:1,body:'public opinion',source:'HUMAN',idempotencyKey:randomUUID()});
+  assert.equal((await requests.getPrivateRequest(b,third.id)).status,'AWAITING_REVIEW');
+  await flow.resend(a,p,third.id,grant.id,{expectedVersion:1,privateBody:'v2',verificationClaim:content,idempotencyKey:randomUUID()});
+  duringConfirm=async()=>{};
+  await Promise.all([worker.processPendingJobs(1),worker.processPendingJobs(1)]);
+  assert.equal(await db.handoffReply.count({where:{requestId:third.id,version:{version:2},source:'CODEX_AUTO'}}),1);
+ }finally{await db.project.deleteMany({where:{id:p}});await db.user.deleteMany({where:{id:{in:[a,b]}}});await db.$disconnect();if(oldKey===undefined)delete process.env.HANDOFF_EVIDENCE_KEY;else process.env.HANDOFF_EVIDENCE_KEY=oldKey;}
+});

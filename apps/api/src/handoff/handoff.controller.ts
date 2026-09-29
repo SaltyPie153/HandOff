@@ -1,7 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseUUIDPipe, Post, Req, Res, Query } from '@nestjs/common';
 import { AuthService, type HttpRequest } from '../auth/auth.service.js';
 import { McpGrantService } from '../auth/mcp-grant.js';
 import { HandoffRepository } from './handoff.repository.js';
+import { HandoffWorkflowRepository } from './handoff-workflow.repository.js';
+import { versionNumber } from './handoff-workflow.js';
 
 type HttpResponse = { setHeader(name: string, value: string): void };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,10 +35,11 @@ export class HandoffProjectController {
 
   @Get('inbox')
   async inbox(@Req() req: HttpRequest, @Param('projectId', new ParseUUIDPipe()) projectId: string,
-    @Res({ passthrough: true }) res: HttpResponse) {
+    @Res({ passthrough: true }) res: HttpResponse, @Query('direction') direction?: string) {
     const session = await this.auth.requireSession(req);
     res.setHeader('Cache-Control', 'no-store');
-    return this.handoffs.listMine(session.userId, projectId);
+    if (direction !== undefined && direction !== 'received' && direction !== 'sent') throw new BadRequestException();
+    return this.handoffs.listMine(session.userId, projectId, direction);
   }
 
   @Get('requests/:requestId')
@@ -58,7 +61,7 @@ export class HandoffProjectController {
     if (detail.projectId !== projectId) throw new NotFoundException();
     const body = record(raw);
     return this.handoffs.publishReply(session.userId, requestId, {
-      body: string(body, 'body', 10_000), source: 'HUMAN', idempotencyKey: string(body, 'idempotencyKey', 128)
+      body: string(body, 'body', 10_000), source: 'HUMAN', version: versionNumber(body.version), idempotencyKey: string(body, 'idempotencyKey', 128)
     });
   }
 }
@@ -66,7 +69,18 @@ export class HandoffProjectController {
 @Controller('api/mcp')
 export class HandoffMcpController {
   constructor(private readonly auth: AuthService, private readonly grants: McpGrantService,
-    private readonly handoffs: HandoffRepository) {}
+    private readonly handoffs: HandoffRepository, private readonly flow: HandoffWorkflowRepository) {}
+
+  @Post('requests/:requestId/versions')
+  async resend(@Req() req: HttpRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() raw: unknown) {
+    const grant = await this.grants.requireToken(bearer(req));
+    const body = record(raw);
+    return this.flow.resend(grant.userId, grant.projectId, requestId, grant.id, {
+      expectedVersion: versionNumber(body.expectedVersion), privateBody: string(body, 'privateBody', 50_000),
+      verificationClaim: body.verificationClaim == null ? null : string(body, 'verificationClaim', 500),
+      idempotencyKey: string(body, 'idempotencyKey', 128)
+    });
+  }
 
   @Post('grants')
   async grant(@Req() req: HttpRequest, @Body() raw: unknown, @Res({ passthrough: true }) res: HttpResponse) {

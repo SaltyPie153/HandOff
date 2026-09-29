@@ -24,6 +24,12 @@ export function createServer(client: HandoffApiClient) {
       idempotencyKey: z.string().min(1).max(128)
     })
   }, async input => safe(() => client.sendRequest(input)));
+  server.registerTool('resend_request', {
+    description: 'Send a new immutable version of your own handoff. Read get_my_request for the current version and private change request first. Reuse the idempotencyKey and identical input on retries. This does not confirm receipt or agree to a contract.',
+    inputSchema: z.object({ requestId: z.uuid(), expectedVersion: z.number().int().positive(),
+      privateBody: z.string().min(1).max(50_000), verificationClaim: z.string().min(1).max(500).optional(),
+      idempotencyKey: z.string().min(1).max(128) })
+  }, async input => safe(() => client.resendRequest(input)));
   server.registerTool('list_my_projects', {
     description: 'List the project attached to this MCP grant.', inputSchema: z.object({})
   }, async () => safe(() => client.listMyProjects()));

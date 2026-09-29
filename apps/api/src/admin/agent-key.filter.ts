@@ -1,12 +1,14 @@
 import { ArgumentsHost, Catch, HttpException } from '@nestjs/common';
-import { BaseExceptionFilter } from '@nestjs/core';
+import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 
 @Catch()
 export class AgentKeyExceptionFilter extends BaseExceptionFilter {
+  constructor(private readonly adapterHost: HttpAdapterHost) { super(); }
   override catch(exception: unknown, host: ArgumentsHost): void {
     const request = host.switchToHttp().getRequest<{ originalUrl?: string; url?: string }>();
     if (!/^\/api\/admin\/agent-key\/?(?:\?|$)/.test(request.originalUrl ?? request.url ?? '')) {
-      super.catch(exception, host);
+      // createNestApplication attaches the adapter after providers are constructed.
+      new BaseExceptionFilter(this.adapterHost.httpAdapter).catch(exception, host);
       return;
     }
     const response = host.switchToHttp().getResponse<{
