@@ -37,7 +37,7 @@ test('contract proposal, private changes, new unanimous agreement and exact team
   expect((await db.query(`SELECT count(*)::int n FROM contract_notifications n JOIN contract_proposal_versions v ON v.id=n.version_id WHERE v.proposal_id=$1 AND n.kind='CONFIRMED'`,[r.proposalId])).rows[0].n).toBe(3);
  }finally{
   await Promise.allSettled(contexts.map(ctx=>ctx.close()));
-  await db.query(`UPDATE development_contracts SET status='UNCONFIRMED',current_version_id=NULL,confirmed_at=NULL WHERE project_id=$1`,[projectId]);
+  await db.query(`UPDATE development_contracts SET status='UNCONFIRMED',current_version_id=NULL,last_confirmed_version_id=NULL,retirement_version_id=NULL,retired_at=NULL,confirmed_at=NULL WHERE project_id=$1`,[projectId]);
   await db.query('DELETE FROM projects WHERE id=$1',[projectId]);await db.query('DELETE FROM users WHERE id=ANY($1::uuid[])',[users]);await db.end();
  }
 });
