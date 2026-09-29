@@ -2,7 +2,7 @@ import {Body,Controller,Get,Header,Param,ParseUUIDPipe,Post,Query,Req} from '@ne
 import {AuthService,type HttpRequest} from '../auth/auth.service.js';
 import {ContractRepository} from './contract.repository.js';
 import {ContractQueryRepository} from './contract-query.repository.js';
-import type {ContractResponseInput} from './contract.types.js';
+import type {ContractResponseInput,WithdrawContractInput} from './contract.types.js';
 import {versionNumber} from '../handoff/handoff-workflow.js';
 
 @Controller('api/projects/:projectId')
@@ -24,4 +24,6 @@ export class ContractController{
  async respond(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('proposalId',new ParseUUIDPipe()) id:string,@Body() raw:ContractResponseInput){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.flow.respond(session.userId,projectId,id,raw,{tokenHash:session.tokenHash,csrfHash:session.csrfHash});}
  @Post('contract-notifications/:id/read')
  async read(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('id',new ParseUUIDPipe()) id:string){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.queries.markRead(session.userId,projectId,id);}
+ @Post('contract-proposals/:proposalId/withdraw')
+ async withdraw(@Req() req:HttpRequest,@Param('projectId',new ParseUUIDPipe()) projectId:string,@Param('proposalId',new ParseUUIDPipe()) id:string,@Body() raw:WithdrawContractInput){const session=await this.auth.requireSession(req);this.auth.requireCsrf(req,session.csrfHash);return this.flow.withdraw(session.userId,projectId,id,raw,{tokenHash:session.tokenHash,csrfHash:session.csrfHash});}
 }

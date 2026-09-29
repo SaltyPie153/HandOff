@@ -32,6 +32,19 @@ integration('contract HTTP isolates human consent from MCP and enforces project,
   for(const who of [0,1,2])assert.equal((await call(path+'/responses','POST',action(2),who)).status,201);
   const detail=await call(`/api/projects/${p}/contracts/${r.contractId}`,'GET',undefined,4).then(r=>r.json());assert.equal(detail.body,'revised');assert.ok(!('responses' in detail));
   const active=await call('/api/mcp/contracts','GET',undefined,null,false,grant.token).then(r=>r.json());assert.equal(active.length,1);
+  const baseline=(await db.developmentContract.findUnique({where:{id:r.contractId}})).currentVersionId;
+  const followupPath=`/api/mcp/contracts/${r.contractId}/proposals`,changeInput={kind:'CHANGE',baselineVersionId:baseline,proposedBody:'new body',requiredPmIds:[],referencePmIds:[],idempotencyKey:randomUUID()};
+  assert.equal((await call(followupPath,'POST',changeInput,null,false,grant.token)).status,201);
+  const next=await call(followupPath,'POST',changeInput,null,false,grant.token).then(r=>r.json()),withdrawPath=`/api/projects/${p}/contract-proposals/${next.proposalId}/withdraw`;
+  const withdraw={expectedVersion:1,reason:'reconsider',idempotencyKey:randomUUID()};
+  assert.equal((await call(withdrawPath,'POST',withdraw,null,false,grant.token)).status,401);
+  assert.equal((await call(withdrawPath,'POST',withdraw,0,false)).status,403);
+  assert.equal((await call(withdrawPath,'POST',withdraw,1)).status,404);
+  assert.equal((await call(withdrawPath.replace(p,randomUUID()),'POST',withdraw)).status,404);
+  assert.equal((await call(withdrawPath,'POST',{...withdraw,reason:''})).status,400);
+  assert.equal((await call(withdrawPath,'POST',{...withdraw,expectedVersion:2})).status,409);
+  assert.equal((await call(withdrawPath,'POST',withdraw)).status,201);
+  assert.equal((await call(followupPath,'POST',{...changeInput,kind:'RETIRE',baselineVersionId:undefined,idempotencyKey:randomUUID()},null,false,grant.token)).status,400);
   await db.user.update({where:{id:c},data:{status:'PENDING'}});assert.equal((await call(`/api/projects/${p}/contracts/${r.contractId}`,'GET',undefined,4)).status,404);
  }finally{await app?.close();await f.close();}
 });

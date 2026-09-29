@@ -34,7 +34,7 @@ test('MCP server advertises tools and validates arguments before sending', async
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_contract','get_my_contract_proposal','get_my_request','list_active_contracts','list_my_projects','propose_contract','resend_request','revise_contract_proposal','send_request']);
+    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_contract','get_my_contract_proposal','get_my_request','list_active_contracts','list_my_projects','propose_contract','propose_contract_change','resend_request','restart_contract_proposal','revise_contract_proposal','send_request']);
     const result = await client.callTool({ name: 'list_my_projects', arguments: {} });
     assert.equal(result.isError, undefined);
     assert.equal(calls.length, 1);
@@ -81,4 +81,19 @@ test('MCP client rejects insecure remote origins and redacts API failures', asyn
     new Response(JSON.stringify({ message: 'private terms private-token' }), { status: 403 }));
   await assert.rejects(client.sendRequest({ projectId: 'p', recipientId: 'r', publicTitle: 'x', privateBody: 'private terms', idempotencyKey: 'k' }),
     error => error instanceof Error && error.message === 'HandOff API request failed (403)');
+});
+
+test('lifecycle tools bind contract and baseline and never expose human withdrawal',async()=>{
+ const calls:Array<{url:string;body:any}>=[],id='4dafdeba-9bb7-4581-900a-b3f60d1bf081';
+ const server=createServer(new HandoffApiClient('https://handoff.example','token',async(url,init)=>{calls.push({url:String(url),body:init?.body?JSON.parse(String(init.body)):null});return new Response(JSON.stringify({status:'RETIRED',body:null,version:null}));}));
+ const client=new Client({name:'lifecycle',version:'1'}),[ct,st]=InMemoryTransport.createLinkedPair();
+ try{await server.connect(st);await client.connect(ct);
+  assert.ok(!(await client.listTools()).tools.some(t=>/withdraw|agree|consent/.test(t.name)));
+  const fields={contractId:id,proposedBody:'reason',requiredPmIds:[],referencePmIds:[],idempotencyKey:'stable'};
+  assert.equal((await client.callTool({name:'propose_contract_change',arguments:{...fields,kind:'RETIRE',baselineVersionId:id}})).isError,undefined);
+  assert.deepEqual(calls.at(-1),{url:`https://handoff.example/api/mcp/contracts/${id}/proposals`,body:{proposedBody:'reason',requiredPmIds:[],referencePmIds:[],idempotencyKey:'stable',kind:'RETIRE',baselineVersionId:id}});
+  assert.equal((await client.callTool({name:'restart_contract_proposal',arguments:{...fields,previousProposalId:id}})).isError,undefined);assert.equal(calls.at(-1)?.body.kind,'INITIAL');
+  const count=calls.length;assert.equal((await client.callTool({name:'propose_contract_change',arguments:{...fields,kind:'CHANGE'}})).isError,true);assert.equal(calls.length,count);
+  const retired=await client.callTool({name:'get_contract',arguments:{contractId:id}});assert.equal(retired.isError,undefined);assert.ok(JSON.stringify(retired).includes('RETIRED'));
+ }finally{await client.close();await server.close();}
 });
