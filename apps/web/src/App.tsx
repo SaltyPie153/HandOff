@@ -15,6 +15,10 @@ import { HandoffRequestPage } from './handoff/HandoffRequestPage';
 import { McpGrants } from './handoff/McpGrants';
 import { EvidenceSources } from './handoff/EvidenceSources';
 import { AgentKeySettings } from './handoff/AgentKeySettings';
+import {ContractListPage} from './contracts/ContractListPage';
+import {ContractDetailPage} from './contracts/ContractDetailPage';
+import {ContractInboxPage} from './contracts/ContractInboxPage';
+import {ContractProposalPage} from './contracts/ContractProposalPage';
 
 export default function App() {
   const health = window.location.pathname === '/dev/health';
@@ -52,6 +56,14 @@ export default function App() {
       <EvidenceSources />
       {state.viewer.isServiceAdmin && <AgentKeySettings />}
     </Stack>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/contract-proposals\/[0-9a-f-]{36}$/i.test(path)) {
+    content=<ContractProposalPage projectId={path.split('/')[2]} proposalId={path.split('/')[4]} viewerId={state.viewer.id}/>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/contracts\/[0-9a-f-]{36}$/i.test(path)) {
+    content=<ContractDetailPage projectId={path.split('/')[2]} contractId={path.split('/')[4]}/>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/contracts$/i.test(path)) {
+    content=<ContractListPage projectId={path.split('/')[2]}/>;
+  } else if (/^\/projects\/[0-9a-f-]{36}\/contract-inbox$/i.test(path)) {
+    content=<ContractInboxPage projectId={path.split('/')[2]}/>;
   } else if (/^\/projects\/[0-9a-f-]{36}\/requests\/[0-9a-f-]{36}$/i.test(path)) {
     content = <HandoffRequestPage projectId={path.split('/')[2]} requestId={path.split('/')[4]} viewerId={state.viewer.id} />;
   } else if (/^\/projects\/[0-9a-f-]{36}\/feed$/i.test(path)) {
