@@ -39,6 +39,11 @@ export class HandoffApiClient {
     return this.call('/api/mcp/requests', 'POST', input);
   }
 
+  resendRequest(input: { requestId: string; expectedVersion: number; privateBody: string; verificationClaim?: string; idempotencyKey: string }): Promise<unknown> {
+    const { requestId, ...body } = input;
+    return this.call(`/api/mcp/requests/${encodeURIComponent(requestId)}/versions`, 'POST', body);
+  }
+
   listMyProjects(): Promise<unknown> {
     return this.call('/api/mcp/projects', 'GET');
   }

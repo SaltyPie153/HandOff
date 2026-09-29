@@ -1,10 +1,14 @@
 import { csrfToken } from '../auth/api';
 
-export type Reply = { id: string; actorId: string; body: string; source: 'HUMAN' | 'CODEX_AUTO'; createdAt: string };
-export type FeedItem = { id: string; projectId: string; publicTitle: string; senderId: string; recipientId: string; createdAt: string; replies: Reply[] };
-export type InboxItem = { id: string; publicTitle: string; senderId: string; recipientId: string; createdAt: string;
+export type Reply = { id: string; actorId: string; body: string; source: 'HUMAN' | 'CODEX_AUTO'; createdAt: string; version: number };
+export type FeedItem = { id: string; projectId: string; publicTitle: string; canOpen: boolean; createdAt: string; replies: Reply[] };
+export type VersionStatus = 'AWAITING_REVIEW' | 'ACKNOWLEDGED' | 'CHANGES_REQUESTED' | 'SUPERSEDED';
+export const statusLabel: Record<VersionStatus,string> = { AWAITING_REVIEW:'확인 대기', ACKNOWLEDGED:'확인 완료', CHANGES_REQUESTED:'수정 요청됨', SUPERSEDED:'대체된 버전' };
+export type InboxItem = { id: string; publicTitle: string; senderId: string; recipientId: string; createdAt: string; currentVersion: number; status: VersionStatus;
   job: { status: string; reviewReason: string | null } | null };
-export type RequestDetail = FeedItem & { privateBody: string; version: number;
+export type RequestDetail = Omit<FeedItem,'canOpen'> & { privateBody: string; version: number; currentVersion: number; versionId: string; status: VersionStatus; senderId: string; recipientId: string; canRespond: boolean;
+  response: { action:'ACKNOWLEDGE'|'REQUEST_CHANGES'; comment:string|null; actorId:string; createdAt:string } | null;
+  versions: Array<{version:number;status:VersionStatus;createdAt:string}>;
   verificationClaim: string | null;
   job: { status: string; reviewReason?: string | null; reviewDraft?: string | null } | null };
 export type McpGrant = { id: string; projectId: string; createdAt: string; expiresAt: string };
@@ -30,10 +34,18 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 
 const project = (id: string) => `/api/projects/${encodeURIComponent(id)}`;
 export const loadFeed = (projectId: string) => request<FeedItem[]>(`${project(projectId)}/feed`);
-export const loadInbox = (projectId: string) => request<InboxItem[]>(`${project(projectId)}/inbox`);
+export const loadInbox = (projectId: string,direction?:'received'|'sent') => request<InboxItem[]>(`${project(projectId)}/inbox${direction?'?direction='+direction:''}`);
 export const loadRequest = (projectId: string, requestId: string) => request<RequestDetail>(`${project(projectId)}/requests/${encodeURIComponent(requestId)}`);
-export const publishReply = (projectId: string, requestId: string, body: string, idempotencyKey: string) =>
-  request<Reply>(`${project(projectId)}/requests/${encodeURIComponent(requestId)}/replies`, 'POST', { body, idempotencyKey });
+export const publishReply = (projectId: string, requestId: string, body: string, idempotencyKey: string, version: number) =>
+  request<Reply>(`${project(projectId)}/requests/${encodeURIComponent(requestId)}/replies`, 'POST', { body, idempotencyKey, version });
+export const loadRequestVersion = (projectId:string,requestId:string,version:number) => request<RequestDetail>(`${project(projectId)}/requests/${encodeURIComponent(requestId)}/versions/${version}`);
+export const respondToRequest = (projectId:string,requestId:string,input:{version:number;action:'ACKNOWLEDGE'|'REQUEST_CHANGES';comment?:string;idempotencyKey:string}) =>
+  request(`${project(projectId)}/requests/${encodeURIComponent(requestId)}/responses`,'POST',input);
+export type HandoffSummary={needsReview:number;needsChanges:number;unreadNotifications:number};
+export type HandoffNotification={id:string;requestId:string;publicTitle:string;version:number;kind:'REQUEST_RECEIVED'|'REVISION_RECEIVED'|'ACKNOWLEDGED'|'CHANGES_REQUESTED';createdAt:string;readAt:string|null};
+export const loadHandoffSummary=(projectId:string)=>request<HandoffSummary>(`${project(projectId)}/handoff-summary`);
+export const loadNotifications=(projectId:string)=>request<HandoffNotification[]>(`${project(projectId)}/notifications`);
+export const markNotificationRead=(projectId:string,id:string)=>request<{id:string;readAt:string}>(`${project(projectId)}/notifications/${encodeURIComponent(id)}/read`,'POST',{});
 export const loadMcpGrants = () => request<McpGrant[]>('/api/mcp/grants');
 export const issueMcpGrant = (projectId: string) => request<NewMcpGrant>('/api/mcp/grants', 'POST', { projectId });
 export const revokeMcpGrant = (grantId: string) => request<{ revoked: boolean }>(`/api/mcp/grants/${encodeURIComponent(grantId)}`, 'DELETE');

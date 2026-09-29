@@ -20,12 +20,12 @@ export function HandoffFeedPage({ projectId, viewerId }: { projectId: string; vi
     {items?.length === 0 && <Typography>아직 공유된 요청이 없습니다.</Typography>}
     <List>{items?.map(item => <ListItem key={item.id} sx={{ display: 'block' }}>
       <Typography component="h2" variant="h6">
-        {viewerId === item.senderId || viewerId === item.recipientId
+        {item.canOpen
           ? <Link href={`/projects/${projectId}/requests/${item.id}`}>{item.publicTitle}</Link>
           : item.publicTitle}
       </Typography>
       {item.replies.map(reply => <Typography key={reply.id} sx={{ whiteSpace: 'pre-wrap' }}>
-        {reply.source === 'CODEX_AUTO' ? '서버 자동 회신 · ' : '회원 회신 · '}{reply.body}
+        버전 {reply.version} · {reply.source === 'CODEX_AUTO' ? '서버 자동 회신 · ' : '회원 회신 · '}{reply.body}
       </Typography>)}
     </ListItem>)}</List>
   </Stack>;
