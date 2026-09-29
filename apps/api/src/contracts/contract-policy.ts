@@ -1,6 +1,7 @@
 import {BadRequestException} from '@nestjs/common';
 import {text,versionNumber} from '../handoff/handoff-workflow.js';
 import type {ProposeContractInput,ReviseContractInput,ContractResponseInput} from './contract.types.js';
+import type {FollowupContractInput,WithdrawContractInput} from './contract.types.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function memberId(value:unknown):string {
  if(typeof value!=='string'||!uuid.test(value))throw new BadRequestException('Invalid member');
@@ -29,7 +30,18 @@ export function normalizeProposal(senderId:string,input:ProposeContractInput):Pr
  const {expectedVersion,...base}=normalizeRevision({...input,expectedVersion:1});
  const recipientId=memberId(input.recipientId);
  participants(senderId,recipientId,base.requiredPmIds,base.referencePmIds);
- return {...base,recipientId,publicTitle:text(input.publicTitle,160)};
+ return {...base,recipientId,publicTitle:text(input.publicTitle,160),...(input.previousContractId!==undefined?{previousContractId:memberId(input.previousContractId)}:{})};
+}
+export function normalizeFollowup(input:FollowupContractInput):FollowupContractInput{
+ if(!input||!['INITIAL','CHANGE','RETIRE'].includes(input.kind))throw new BadRequestException('Invalid proposal kind');
+ const {expectedVersion,...base}=normalizeRevision({...input,expectedVersion:1});
+ if(input.kind==='INITIAL'&&(input.baselineVersionId!==undefined||input.previousProposalId===undefined))throw new BadRequestException('Initial continuation requires a withdrawn proposal');
+ if(input.kind!=='INITIAL'&&input.baselineVersionId===undefined)throw new BadRequestException('Baseline required');
+ return {...base,kind:input.kind,...(input.baselineVersionId!==undefined?{baselineVersionId:memberId(input.baselineVersionId)}:{}),...(input.previousProposalId!==undefined?{previousProposalId:memberId(input.previousProposalId)}:{})};
+}
+export function normalizeWithdrawal(input:WithdrawContractInput):WithdrawContractInput{
+ if(!input||typeof input!=='object')throw new BadRequestException();
+ return {expectedVersion:versionNumber(input.expectedVersion),reason:text(input.reason,10000),idempotencyKey:text(input.idempotencyKey,128)};
 }
 export function normalizeResponse(input:ContractResponseInput):ContractResponseInput {
  if(!input||!['AGREE','REQUEST_CHANGES'].includes(input.action))throw new BadRequestException('Invalid action');
