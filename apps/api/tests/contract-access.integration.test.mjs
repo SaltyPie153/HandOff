@@ -1,0 +1,45 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
+import {fixture,action,status,sessionFlow} from './contract-fixture.mjs';
+const integration=process.env.NODE_ENV==='test'&&process.env.DATABASE_URL?test:test.skip;
+integration('contract queries scope private versions, publish only agreed text and audit body reads independently',async()=>{
+ const mod=await import('../dist/src/contracts/contract-query.repository.js').catch(()=>({}));assert.equal(typeof mod.ContractQueryRepository,'function');
+ const {ContractRepository}=await import('../dist/src/contracts/contract.repository.js');const f=await fixture();
+ const {db,a,b,pm,ref,c,p,grant,input}=f,flow=sessionFlow(ContractRepository,f),q=new mod.ContractQueryRepository(db);
+ try{
+  const r=await flow.propose(a,p,grant.id,input);
+  assert.equal((await q.summary(a,p)).needsReview,1);assert.equal((await q.summary(ref,p)).needsReview,0);
+  const cards=await q.listPublic(c,p);assert.equal(cards[0].publicTitle,input.publicTitle);assert.equal(cards[0].canOpenProposal,false);
+  assert.equal(await db.contractReadAudit.count({where:{versionId:r.versionId}}),0);
+  await assert.rejects(q.getPublic(c,p,r.contractId),status(404));await assert.rejects(q.getProposal(c,p,r.proposalId),status(404));
+  await q.getProposal(a,p,r.proposalId,1,grant.id);
+  const audit=await db.contractReadAudit.findFirst({where:{versionId:r.versionId}});assert.equal(audit.userId,a);assert.equal(audit.grantId,grant.id);
+  assert.equal(await db.contractResponse.count({where:{proposalId:r.proposalId}}),0);
+  await flow.respond(b,p,r.proposalId,action(1));assert.equal((await q.summary(b,p)).needsReview,0);assert.equal((await q.summary(pm,p)).needsReview,1);
+  await flow.respond(pm,p,r.proposalId,action(1,'REQUEST_CHANGES'));
+  assert.equal((await q.summary(a,p)).needsChanges,1);assert.equal((await q.summary(a,p)).needsReview,0);
+  const notes=await q.notifications(a,p),note=notes.find(n=>n.kind==='CHANGES_REQUESTED');
+  await assert.rejects(q.markRead(c,p,note.id),status(404));
+  assert.equal((await q.markRead(a,p,note.id)).readAt,(await q.markRead(a,p,note.id)).readAt);
+  assert.ok(!JSON.stringify(notes).includes('Private revision'));
+  const v2=await flow.revise(a,p,r.proposalId,grant.id,{expectedVersion:1,proposedBody:'agreed v2',requiredPmIds:[c],referencePmIds:[ref],idempotencyKey:randomUUID()});
+  await assert.rejects(q.getProposal(c,p,r.proposalId,1),status(404));
+  assert.deepEqual((await q.getProposal(c,p,r.proposalId)).versions.map(v=>v.version),[2]);
+  await assert.rejects(q.getProposal(pm,p,r.proposalId,2),status(404));
+  assert.deepEqual((await q.getProposal(pm,p,r.proposalId)).versions.map(v=>v.version),[1]);
+  assert.equal((await q.listMine(pm,p))[0].version,1);
+  await db.projectMembership.delete({where:{projectId_userId:{projectId:p,userId:b}}});
+  assert.equal((await q.getProposal(a,p,r.proposalId)).blocked,true);assert.equal((await q.summary(a,p)).needsReview,0);
+  await db.projectMembership.create({data:{projectId:p,userId:b,role:'MEMBER'}});
+  await db.projectMembership.delete({where:{projectId_userId:{projectId:p,userId:ref}}});
+  assert.equal((await q.getProposal(a,p,r.proposalId)).canRespond,true);
+  await Promise.all([a,b,c].map(id=>flow.respond(id,p,r.proposalId,action(2))));
+  const publicDetail=await q.getPublic(pm,p,r.contractId);
+  assert.equal(publicDetail.body,'agreed v2');assert.equal(publicDetail.version,2);
+  for(const key of ['participants','responses','comment','proposedBody','senderId','versions','proposalId'])assert.ok(!(key in publicDetail));
+  assert.equal((await q.listPublic(pm,p,true)).length,1);
+  const count=await db.contractReadAudit.count({where:{versionId:v2.versionId}});await q.listPublic(pm,p,true);assert.equal(await db.contractReadAudit.count({where:{versionId:v2.versionId}}),count);
+  await db.projectMembership.delete({where:{projectId_userId:{projectId:p,userId:pm}}});
+  await assert.rejects(q.getPublic(pm,p,r.contractId),status(404));await assert.rejects(q.getProposal(pm,p,r.proposalId,1),status(404));
+  await db.mcpGrant.update({where:{id:grant.id},data:{revokedAt:new Date()}});await assert.rejects(q.getPublic(a,p,r.contractId,grant.id),status(403));
+ }finally{await f.close();}
+});
