@@ -1,10 +1,10 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
-import {fixture,action,status} from './contract-fixture.mjs';
+import {fixture,action,status,sessionFlow} from './contract-fixture.mjs';
 const integration=process.env.NODE_ENV==='test'&&process.env.DATABASE_URL?test:test.skip;
 integration('contract queries scope private versions, publish only agreed text and audit body reads independently',async()=>{
  const mod=await import('../dist/src/contracts/contract-query.repository.js').catch(()=>({}));assert.equal(typeof mod.ContractQueryRepository,'function');
  const {ContractRepository}=await import('../dist/src/contracts/contract.repository.js');const f=await fixture();
- const {db,a,b,pm,ref,c,p,grant,input}=f,flow=new ContractRepository(db),q=new mod.ContractQueryRepository(db);
+ const {db,a,b,pm,ref,c,p,grant,input}=f,flow=sessionFlow(ContractRepository,f),q=new mod.ContractQueryRepository(db);
  try{
   const r=await flow.propose(a,p,grant.id,input);
   assert.equal((await q.summary(a,p)).needsReview,1);assert.equal((await q.summary(ref,p)).needsReview,0);

@@ -1,6 +1,6 @@
 # 개발 계약 최초 합의 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** MCP로 제안한 개발 계약을 A·B·필수 PM이 웹에서 버전별로 동의하고, 최초 확정 본문을 프로젝트 팀에 공개한다.
 
@@ -69,26 +69,26 @@ type ContractSummary = { needsReview: number; needsChanges: number; unreadNotifi
 
 **Interfaces:** `normalizeProposal(senderId, input): ProposeContractInput`, `normalizeRevision(input): ReviseContractInput`, `normalizeResponse(input): ContractResponseInput`; PM 배열 정렬, UUID/중복/역할 검증은 policy에서 수행한다.
 
-- [ ] 정책 실패 검사를 작성한다: 빈/과대 제목·본문·의견, 버전0/소수, 동일 A/B, 중복·겹친 PM, 각11명 PM 거부. PM 순서만 다른 입력의 정규화 결과는 deepEqual이다.
-- [ ] `npm run test --workspace @handoff/api`로 실패를 확인한다. Expected: 새 policy 미구현으로 FAIL.
-- [ ] 별도 시험 DB의 0008 fixture에 기존 인수인계 응답을 만든 뒤 0009 적용 검사를 작성한다. Expected: 기존 기록 동일, 계약 응답0; 같은 버전 중복 참여·응답, 다른 계약의 현재 버전 참조는 DB에서 거부.
-- [ ] 모델을 구현한다: `DevelopmentContract(UNCONFIRMED|ACTIVE,currentVersionId?)`, `ContractProposal(contractId unique,senderId,recipientId,currentVersion,sendKey,payloadHash)`, `ContractProposalVersion(version,status,proposedBody,sendKey,payloadHash,confirmedAt?)`, `ContractParticipant(role)`, `ContractResponse`, `ContractNotification`, `ContractReadAudit(userId,grantId?,versionId,createdAt)`.
-- [ ] proposal/version·계약 연결은 복합 FK로 보강한다. 버전 양수, 응답 의견 규칙, 버전/회원 및 알림 수신자/버전/종류 unique를 추가한다. 순환 참조는 테이블 생성 후 FK를 추가한다. 미확정 계약의 currentVersionId는 null이다.
-- [ ] `npm run db:generate`, API build와 policy/migration 검사를 실행한다. Expected: 생성·빌드 PASS, 실제 DB 검사 skip0. 해당 파일만 `feat: add contract agreement schema and policy`로 커밋한다.
+- [x] 정책 실패 검사를 작성한다: 빈/과대 제목·본문·의견, 버전0/소수, 동일 A/B, 중복·겹친 PM, 각11명 PM 거부. PM 순서만 다른 입력의 정규화 결과는 deepEqual이다.
+- [x] `npm run test --workspace @handoff/api`로 실패를 확인한다. Expected: 새 policy 미구현으로 FAIL.
+- [x] 별도 시험 DB의 0008 fixture에 기존 인수인계 응답을 만든 뒤 0009 적용 검사를 작성한다. Expected: 기존 기록 동일, 계약 응답0; 같은 버전 중복 참여·응답, 다른 계약의 현재 버전 참조는 DB에서 거부.
+- [x] 모델을 구현한다: `DevelopmentContract(UNCONFIRMED|ACTIVE,currentVersionId?)`, `ContractProposal(contractId unique,senderId,recipientId,currentVersion,sendKey,payloadHash)`, `ContractProposalVersion(version,status,proposedBody,sendKey,payloadHash,confirmedAt?)`, `ContractParticipant(role)`, `ContractResponse`, `ContractNotification`, `ContractReadAudit(userId,grantId?,versionId,createdAt)`.
+- [x] proposal/version·계약 연결은 복합 FK로 보강한다. 버전 양수, 응답 의견 규칙, 버전/회원 및 알림 수신자/버전/종류 unique를 추가한다. 순환 참조는 테이블 생성 후 FK를 추가한다. 미확정 계약의 currentVersionId는 null이다.
+- [x] `npm run db:generate`, API build와 policy/migration 검사를 실행한다. Expected: 생성·빌드 PASS, 실제 DB 검사 skip0. 해당 파일만 `feat: add contract agreement schema and policy`로 커밋한다.
 
 ## Task 2: 제안·재전송·사람 동의 트랜잭션
 
 **Files:** 새 contract.repository.ts, `apps/api/tests/contract-agreement.integration.test.mjs`.
 
-**Interfaces:** `propose(actorId, projectId, grantId, input): Promise<ProposalReceipt>`; `revise(actorId, projectId, proposalId, grantId, input): Promise<ProposalReceipt>`; `respond(actorId, projectId, proposalId, input): Promise<ResponseReceipt>`.
+**Interfaces:** `propose(actorId, projectId, grantId, input): Promise<ProposalReceipt>`; `revise(actorId, projectId, proposalId, grantId, input): Promise<ProposalReceipt>`; `respond(actorId, projectId, proposalId, input, session): Promise<ResponseReceipt>`. 최종 리뷰 보완으로 내부 session 인수는 서버가 검증한 tokenHash/csrfHash를 요구하며 HTTP payload에서는 받지 않는다.
 
-- [ ] 실제 DB 테스트를 작성한다. 핵심 assertions: `responses.count===0` after MCP propose; A/B 동의 후 필수PM 대기면 계약 UNCONFIRMED; 참조PM 미응답 상태에서도 필수PM 동의 후 ACTIVE; `currentVersionId===agreedVersion.id`; 확정 알림은 참여자별1개.
-- [ ] 수정 요청 시 이후 새 응답409, 과거 응답 불변, 새 버전 전송 시 응답0·최신IN_REVIEW, 확정 후 재전송409를 검사한다. 같은 키/입력은 동일ID, 다른 입력409. 배열 순서만 다른 재시도도 동일ID다.
-- [ ] 동시 마지막 동의·재전송, 동의·수정 요청, 멤버 제외·확정의 경합을 명시적 DB 잠금/Promise 장벽으로 재현한다. 성공한 순서와 맞는 상태·응답·알림만 남아야 한다. 세션권한과 MCP grant 철회도 저장 직전 재검사한다.
-- [ ] 격리 환경에서 테스트를 실행한다. Expected: 저장소 미구현으로 FAIL. DB가 없어 skip이면 진행하지 말고 시험 환경을 준비한다.
-- [ ] 계약 행을 먼저 잠그고 필수 회원·멤버십을 ID순으로 잠근 뒤 처리한다. 최초 전송은 A+키 기준 advisory lock으로 중복 생성 방지. 유효 권한 확인 후 재시도 조회→payload 확인→최신 상태 검사 순서다.
-- [ ] 새 버전·참여 스냅샷·알림, 또는 응답·전원 동의 검사·확정 포인터·알림을 각각 원자적으로 저장한다. 마지막 동의 후 새 버전은 거부한다. 이력과 현재 유효본문을 바꾸는 별도 관리 API를 만들지 않는다.
-- [ ] `npm run test:integration`에서 Task1/2와 기존 검사를 실행한다. Expected: PASS, 신규 DB 검사 skip0. `feat: implement atomic contract agreement`로 커밋한다.
+- [x] 실제 DB 테스트를 작성한다. 핵심 assertions: `responses.count===0` after MCP propose; A/B 동의 후 필수PM 대기면 계약 UNCONFIRMED; 참조PM 미응답 상태에서도 필수PM 동의 후 ACTIVE; `currentVersionId===agreedVersion.id`; 확정 알림은 참여자별1개.
+- [x] 수정 요청 시 이후 새 응답409, 과거 응답 불변, 새 버전 전송 시 응답0·최신IN_REVIEW, 확정 후 재전송409를 검사한다. 같은 키/입력은 동일ID, 다른 입력409. 배열 순서만 다른 재시도도 동일ID다.
+- [x] 동시 마지막 동의·재전송, 동의·수정 요청, 멤버 제외·확정의 경합을 명시적 DB 잠금/Promise 장벽으로 재현한다. 성공한 순서와 맞는 상태·응답·알림만 남아야 한다. 세션권한과 MCP grant 철회도 저장 직전 재검사한다.
+- [x] 격리 환경에서 테스트를 실행한다. Expected: 저장소 미구현으로 FAIL. DB가 없어 skip이면 진행하지 말고 시험 환경을 준비한다.
+- [x] 계약 행을 먼저 잠그고 필수 회원·멤버십을 ID순으로 잠근 뒤 처리한다. 최초 전송은 A+키 기준 advisory lock으로 중복 생성 방지. 유효 권한 확인 후 재시도 조회→payload 확인→최신 상태 검사 순서다.
+- [x] 새 버전·참여 스냅샷·알림, 또는 응답·전원 동의 검사·확정 포인터·알림을 각각 원자적으로 저장한다. 마지막 동의 후 새 버전은 거부한다. 이력과 현재 유효본문을 바꾸는 별도 관리 API를 만들지 않는다.
+- [x] `npm run test:integration`에서 Task1/2와 기존 검사를 실행한다. Expected: PASS, 신규 DB 검사 skip0. `feat: implement atomic contract agreement`로 커밋한다.
 
 ## Task 3: 권한별 조회·알림·집계
 
@@ -96,12 +96,12 @@ type ContractSummary = { needsReview: number; needsChanges: number; unreadNotifi
 
 **Interfaces:** `listPublic(viewerId,projectId,activeOnly=false)`, `getPublic(viewerId,projectId,contractId,grantId?)`, `listMine(viewerId,projectId)`, `getProposal(viewerId,projectId,proposalId,version?,grantId?)`, `summary(viewerId,projectId): Promise<ContractSummary>`, `notifications(viewerId,projectId)`, `markRead(viewerId,projectId,notificationId)`.
 
-- [ ] C는 제안 제목만 읽고 미확정 본문404, 확정 후 합의한 본문만 읽는 검사를 작성한다. public JSON에 participants/responses/comment/proposedBody/이전 비공개 버전이 없음을 검사한다.
-- [ ] v1참여PM 제거·v2새PM 추가 후 각 사용자가 자신이 참여했던 비공개 버전만 읽는지 검사한다. 프로젝트 제외 시 과거도404. 알림ID를 추측해 다른 회원의 읽음을 바꾸면404다.
-- [ ] B동의 후 PM대기에서 B needsReview0/PM1, 수정 요청 후 A needsChanges1/필수참여자 needsReview0, 필수 권한 상실 시 집계0, 참조자 상실 시 검토 가능을 검사한다. 알림 읽음 반복은 readAt을 유지한다.
-- [ ] 본문 조회는 정확한 user/grant/version 감사1건, 목록은 감사0건, 어느 조회도 응답·동의·상태를 바꾸지 않는지 검사한다. DB 검사 실행 Expected: FAIL.
-- [ ] Task2와 같은 현재 승인·프로젝트 권한을 검사하고 버전별 참여 조건 및 공개 DTO whitelist를 적용한다. 할 일은 최신 버전의 미응답·필수권한 모두 충족 조건으로 계산한다. 감사 저장 실패 시 본문 조회도 실패 처리한다.
-- [ ] 관련 실제 DB 검사와 API typecheck 실행 Expected: PASS. `feat: add scoped contract queries and notices`로 커밋한다.
+- [x] C는 제안 제목만 읽고 미확정 본문404, 확정 후 합의한 본문만 읽는 검사를 작성한다. public JSON에 participants/responses/comment/proposedBody/이전 비공개 버전이 없음을 검사한다.
+- [x] v1참여PM 제거·v2새PM 추가 후 각 사용자가 자신이 참여했던 비공개 버전만 읽는지 검사한다. 프로젝트 제외 시 과거도404. 알림ID를 추측해 다른 회원의 읽음을 바꾸면404다.
+- [x] B동의 후 PM대기에서 B needsReview0/PM1, 수정 요청 후 A needsChanges1/필수참여자 needsReview0, 필수 권한 상실 시 집계0, 참조자 상실 시 검토 가능을 검사한다. 알림 읽음 반복은 readAt을 유지한다.
+- [x] 본문 조회는 정확한 user/grant/version 감사1건, 목록은 감사0건, 어느 조회도 응답·동의·상태를 바꾸지 않는지 검사한다. DB 검사 실행 Expected: FAIL.
+- [x] Task2와 같은 현재 승인·프로젝트 권한을 검사하고 버전별 참여 조건 및 공개 DTO whitelist를 적용한다. 할 일은 최신 버전의 미응답·필수권한 모두 충족 조건으로 계산한다. 감사 저장 실패 시 본문 조회도 실패 처리한다.
+- [x] 관련 실제 DB 검사와 API typecheck 실행 Expected: PASS. `feat: add scoped contract queries and notices`로 커밋한다.
 
 ## Task 4: 웹 HTTP·MCP 연결
 
@@ -111,10 +111,10 @@ type ContractSummary = { needsReview: number; needsChanges: number; unreadNotifi
 
 MCP POST `/api/mcp/contracts`, `/api/mcp/contract-proposals/:proposalId/versions`; GET `/api/mcp/contract-proposals/:proposalId?version=N`, `/api/mcp/contracts`, `/api/mcp/contracts/:contractId`. MCP GET contracts는 ACTIVE만 반환한다. projectId는 grant에서 검증하며 생성 입력의 projectId와 일치해야 한다.
 
-- [ ] HTTP 실패 검사를 작성한다: 올바른 사람 세션+CSRF만 응답201; MCP bearer401, CSRF없음403, 비참여관리자/타프로젝트/제외회원404; enum·버전·과대입력400; 구버전409; 비공개 GET no-store.
-- [ ] 실제 MCP SDK 테스트에서 `propose_contract`, `revise_contract_proposal`, `get_my_contract_proposal`, `list_active_contracts`, `get_contract` 목록·스키마·정확한 URL/payload/키 보존을 검사한다. 동의 도구가 없음을 검사한다. Expected: 신규 라우트/도구 미구현 FAIL.
-- [ ] 컨트롤러에서 세션+CSRF 또는 프로젝트 MCP grant를 분리해 Task2/3를 호출한다. MCP transport에 동일 이름의 camelCase 메서드를 추가한다. 네트워크/권한 실패 메시지는 토큰·본문을 포함하지 않는다.
-- [ ] `npm run test --workspace @handoff/mcp`, API HTTP 실제 DB 검사, root typecheck 실행 Expected: PASS. `feat: expose contract web and MCP endpoints`로 커밋한다.
+- [x] HTTP 실패 검사를 작성한다: 올바른 사람 세션+CSRF만 응답201; MCP bearer401, CSRF없음403, 비참여관리자/타프로젝트/제외회원404; enum·버전·과대입력400; 구버전409; 비공개 GET no-store.
+- [x] 실제 MCP SDK 테스트에서 `propose_contract`, `revise_contract_proposal`, `get_my_contract_proposal`, `list_active_contracts`, `get_contract` 목록·스키마·정확한 URL/payload/키 보존을 검사한다. 동의 도구가 없음을 검사한다. Expected: 신규 라우트/도구 미구현 FAIL.
+- [x] 컨트롤러에서 세션+CSRF 또는 프로젝트 MCP grant를 분리해 Task2/3를 호출한다. MCP transport에 동일 이름의 camelCase 메서드를 추가한다. 네트워크/권한 실패 메시지는 토큰·본문을 포함하지 않는다.
+- [x] `npm run test --workspace @handoff/mcp`, API HTTP 실제 DB 검사, root typecheck 실행 Expected: PASS. `feat: expose contract web and MCP endpoints`로 커밋한다.
 
 ## Task 5: 계약 화면·동의·개인 알림
 
@@ -122,22 +122,22 @@ MCP POST `/api/mcp/contracts`, `/api/mcp/contract-proposals/:proposalId/versions
 
 **Interfaces:** 각 페이지 props `{projectId}` 또는 `{projectId,contractId}`/`{projectId,proposalId,viewerId}`. API 함수는 Task4 경로와 Task1 DTO를 사용한다. 라우트는 `/projects/:id/contracts`, `/contracts/:contractId`, `/contract-inbox`, `/contract-proposals/:proposalId`.
 
-- [ ] 실패 UI 검사를 작성한다: A에게도 동의 버튼, 참조/과거/종료버전에는 버튼 없음; 전원 동의 전 공개될 본문 안내문 표시; PM대기와 내응답완료 구분; C확정상세에 의견/개인응답 없음.
-- [ ] 네트워크 응답 유실 후 동일 입력 재시도 키 동일, 성공 뒤 새 행동은 새 키, 409→최신 버전 로드 후 의견 유지 및 자동 전송 없음, 늦은 과거 fetch가 최신화면을 덮지 않음을 검사한다. 읽음은 동의 호출을 하지 않는다. Expected: `npm run test --workspace @handoff/web` FAIL.
-- [ ] 공개목록/확정본문과 비공개 제안화면을 분리한다. React 텍스트 렌더링으로 본문을 표시하고 원시 HTML을 실행하지 않는다. 응답 폼의 의견 상태는 부모에서 요청별로 유지한다. 서버 canRespond/canRevise와 역할 안내를 사용한다.
-- [ ] 계약 전용 알림·할 일과 MCP 재전송 안내(제안ID·현재버전)를 제공한다. 조회 실패를0건/빈목록으로 속이지 않고 오류와 재시도를 표시한다.
-- [ ] 웹 전체 test와 build 실행 Expected: PASS. `feat: add contract agreement screens`로 커밋한다.
+- [x] 실패 UI 검사를 작성한다: A에게도 동의 버튼, 참조/과거/종료버전에는 버튼 없음; 전원 동의 전 공개될 본문 안내문 표시; PM대기와 내응답완료 구분; C확정상세에 의견/개인응답 없음.
+- [x] 네트워크 응답 유실 후 동일 입력 재시도 키 동일, 성공 뒤 새 행동은 새 키, 409→최신 버전 로드 후 의견 유지 및 자동 전송 없음, 늦은 과거 fetch가 최신화면을 덮지 않음을 검사한다. 읽음은 동의 호출을 하지 않는다. Expected: `npm run test --workspace @handoff/web` FAIL.
+- [x] 공개목록/확정본문과 비공개 제안화면을 분리한다. React 텍스트 렌더링으로 본문을 표시하고 원시 HTML을 실행하지 않는다. 응답 폼의 의견 상태는 부모에서 요청별로 유지한다. 서버 canRespond/canRevise와 역할 안내를 사용한다.
+- [x] 계약 전용 알림·할 일과 MCP 재전송 안내(제안ID·현재버전)를 제공한다. 조회 실패를0건/빈목록으로 속이지 않고 오류와 재시도를 표시한다.
+- [x] 웹 전체 test와 build 실행 Expected: PASS. `feat: add contract agreement screens`로 커밋한다.
 
 ## Task 6: 전체 흐름·문서·최종 검증
 
 **Files:** `tests/e2e/contract-agreement.spec.ts`, `specs/006-contract-agreement/quickstart.md`, docs/product/spec.md·technical-design.md, docs/harness/checks.md·decisions.md, work/contract-agreement/resume.md.
 
-- [ ] 격리 A/B/필수PM/C 브라우저 E2E를 작성한다. MCP제안→B수정요청→A새버전→A/B동의→PM대기→PM동의→C확정본문 조회를 검사한다. 새로고침 후 상태·알림 유지, C비공개 URL404, 과거 응답409, 확정후 재전송409를 포함한다.
-- [ ] Node24에서 `npm run build`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run test:e2e` 실행 Expected: 모두 exit0. 포트 충돌 시 기존 프로세스를 종료하지 않는다. 시험 전용 실행환경만 조정하고 기록한다.
-- [ ] Quickstart에 MCP입력·동의/공개범위·PM상태·사용자검증 순서를 기록한다. 제품 명세의 모호한 확정본문 공개 문구를 사용자 결정으로 명확히 하고 R07/R09/R12/R17/R18/R29의 실제 구현 부분만 갱신한다. R08/R13/R15/R16/R19의 후속 범위는 완료로 표시하지 않는다.
-- [ ] `pwsh -NoProfile -File scripts/check-harness.ps1`, `pwsh -NoProfile -File scripts/test-harness.ps1`, `git diff --check` 실행 Expected: PASS. Harness와 제품 검사 결과를 구분한다.
-- [ ] executing-plans의 최종 독립 리뷰에서 Review Focus와 문서·실제 diff를 검사한다. 중요한 결함은 RED→GREEN으로 수정하고 영향을 받는 검사만 재실행한다.
-- [ ] 문서·검증 결과를 커밋하고 resume에 명령·종료코드·커밋·미검증을 남긴다. 실제 OAuth/Solar/운영 배포를 확인했다고 보고하지 않는다. push/PR/merge는 별도 요청 전 하지 않는다.
+- [x] 격리 A/B/필수PM/C 브라우저 E2E를 작성한다. MCP제안→B수정요청→A새버전→A/B동의→PM대기→PM동의→C확정본문 조회를 검사한다. 새로고침 후 상태·알림 유지, C비공개 URL404, 과거 응답409, 확정후 재전송409를 포함한다.
+- [x] Node24에서 `npm run build`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run test:e2e` 실행 Expected: 모두 exit0. 포트 충돌 시 기존 프로세스를 종료하지 않는다. 시험 전용 실행환경만 조정하고 기록한다.
+- [x] Quickstart에 MCP입력·동의/공개범위·PM상태·사용자검증 순서를 기록한다. 제품 명세의 모호한 확정본문 공개 문구를 사용자 결정으로 명확히 하고 R07/R09/R12/R17/R18/R29의 실제 구현 부분만 갱신한다. R08/R13/R15/R16/R19의 후속 범위는 완료로 표시하지 않는다.
+- [x] `pwsh -NoProfile -File scripts/check-harness.ps1`, `pwsh -NoProfile -File scripts/test-harness.ps1`, `git diff --check` 실행 Expected: PASS. Harness와 제품 검사 결과를 구분한다.
+- [x] executing-plans의 최종 독립 리뷰에서 Review Focus와 문서·실제 diff를 검사한다. 중요한 결함은 RED→GREEN으로 수정하고 영향을 받는 검사만 재실행한다.
+- [x] 문서·검증 결과를 커밋하고 resume에 명령·종료코드·커밋·미검증을 남긴다. 실제 OAuth/Solar/운영 배포를 확인했다고 보고하지 않는다. push/PR/merge는 별도 요청 전 하지 않는다.
 
 ## 자체 검토
 
@@ -146,3 +146,7 @@ MCP POST `/api/mcp/contracts`, `/api/mcp/contract-proposals/:proposalId/versions
 - payload의 projectId는 controller/grant에서, senderId는 자격에서 가져와 임의 송신자 지정과 다른 프로젝트 접근을 막는다.
 - read DTO와 변경 DTO를 분리했으며 새 PM의 과거 접근·필수 이탈·참조 이탈의 차이를 명시했다.
 - 별도 구현 작업 공간과 시험 DB를 사용해 현재 사용자 시험 환경을 보호한다. 직접 구현 후 전체 독립 리뷰 방식으로 진행하는 것을 권장한다.
+
+## 실행 결과
+
+Tasks1~6 구현 및 검증 완료. 최종 독립 리뷰 Important 세션 재검사 결함은 회귀 검사로 수정했다. 동시성 검사의 양쪽 승리 순서 강제 보강은 Minor 후속 항목으로 남겼다. 실제 명령·종료 코드·한계는 [검증 기록](../../../specs/006-contract-agreement/validation.md)을 참조한다.
