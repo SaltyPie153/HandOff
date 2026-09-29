@@ -37,6 +37,21 @@ export function createServer(client: HandoffApiClient) {
     description: 'Read a handoff request only when the grant owner is its sender or recipient.',
     inputSchema: z.object({ requestId: z.uuid() })
   }, async ({ requestId }) => safe(() => client.getMyRequest(requestId)));
+  const proposalFields={proposedBody:z.string().min(1).max(50_000),requiredPmIds:z.array(z.uuid()).max(10),referencePmIds:z.array(z.uuid()).max(10),idempotencyKey:z.string().min(1).max(128)};
+  server.registerTool('propose_contract',{
+    description:'Propose a development contract with private version participants. The title is team public; the exact body becomes team public only after every required HUMAN (including the sender) agrees in the web app. This tool never records consent. Reuse identical input and key on retry.',
+    inputSchema:z.object({projectId:z.uuid(),recipientId:z.uuid(),publicTitle:z.string().min(1).max(160),...proposalFields})
+  },async input=>safe(()=>client.proposeContract(input)));
+  server.registerTool('revise_contract_proposal',{
+    description:'Send a new immutable version of your unconfirmed proposal, after reading its current version and private change comments. All human agreements start over. Confirmed contracts cannot be revised. Reuse identical input and key on retry.',
+    inputSchema:z.object({proposalId:z.uuid(),expectedVersion:z.number().int().positive(),...proposalFields})
+  },async input=>safe(()=>client.reviseContractProposal(input)));
+  server.registerTool('get_my_contract_proposal',{
+    description:'Read only versions in which the grant owner participated. Body reads are audited and never count as agreement.',
+    inputSchema:z.object({proposalId:z.uuid(),version:z.number().int().positive().optional()})
+  },async input=>safe(()=>client.getMyContractProposal(input.proposalId,input.version)));
+  server.registerTool('list_active_contracts',{description:'List currently confirmed contracts in the granted project without private review data.',inputSchema:z.object({})},async()=>safe(()=>client.listActiveContracts()));
+  server.registerTool('get_contract',{description:'Read the exact confirmed contract body shared with the project team. This is an audited read, not human consent.',inputSchema:z.object({contractId:z.uuid()})},async({contractId})=>safe(()=>client.getContract(contractId)));
   return server;
 }
 

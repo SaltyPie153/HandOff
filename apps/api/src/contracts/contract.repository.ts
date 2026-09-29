@@ -19,9 +19,9 @@ export async function requiredAvailable(tx:Prisma.TransactionClient,projectId:st
  const ids=rows.filter(p=>p.role!=='REFERENCE_PM').map(p=>p.userId);
  return await tx.projectMembership.count({where:{projectId,userId:{in:ids},user:{status:'APPROVED'}}})===ids.length;
 }
-async function lockRequired(tx:Prisma.TransactionClient,projectId:string,rows:{userId:string;role:string}[]){
+async function lockRequired(tx:Prisma.TransactionClient,projectId:string,rows:{userId:string;role:string}[],actorId:string){
  for(const id of rows.filter(p=>p.role!=='REFERENCE_PM').map(p=>p.userId).sort()){
-  try{await requireMember(tx,id,projectId);}catch(e){if(e instanceof NotFoundException)throw new ConflictException('A required participant is unavailable');throw e;}
+  try{await requireMember(tx,id,projectId);}catch(e){if(e instanceof NotFoundException&&id!==actorId)throw new ConflictException('A required participant is unavailable');throw e;}
  }
 }
 async function notify(tx:Prisma.TransactionClient,versionId:string,ids:string[],kind:'PROPOSAL_RECEIVED'|'REVISION_RECEIVED'|'CHANGES_REQUESTED'|'CONFIRMED'){
@@ -49,11 +49,12 @@ export class ContractRepository{
   return this.prisma.$transaction(async tx=>{
    const proposal=await lockProposal(tx,proposalId,projectId);
    if(proposal.senderId!==actorId)throw new NotFoundException();
+   if(!await tx.projectMembership.count({where:{projectId,userId:actorId,user:{status:'APPROVED'}}}))throw new NotFoundException();
    const latest=proposal.versions[0],rows=participants(actorId,proposal.recipientId,value.requiredPmIds,value.referencePmIds);
    // Lock the union in one order, including old required members before replacing roles.
    const required=latest.participants.filter(p=>p.role!=='REFERENCE_PM').map(p=>p.userId);
    for(const id of [...new Set([...required,...rows.map(p=>p.userId)])].sort()){
-    try{await requireMember(tx,id,projectId);}catch(e){if(e instanceof NotFoundException&&required.includes(id))throw new ConflictException('A required participant is unavailable');throw e;}
+    try{await requireMember(tx,id,projectId);}catch(e){if(e instanceof NotFoundException&&id!==actorId&&required.includes(id))throw new ConflictException('A required participant is unavailable');throw e;}
    }
    await requireGrant(tx,grantId,actorId,projectId);
    const old=await tx.contractProposalVersion.findUnique({where:{proposalId_sendKey:{proposalId,sendKey:idempotencyKey}}});
@@ -72,7 +73,8 @@ export class ContractRepository{
    const target=await tx.contractProposalVersion.findUnique({where:{proposalId_version:{proposalId,version:value.version}},include:{participants:true}});
    if(!target||!target.participants.some(p=>p.userId===actorId&&p.role!=='REFERENCE_PM'))throw new NotFoundException();
    // Keep actor access separate from required-party blockage and use a stable lock order.
-   await lockRequired(tx,projectId,target.participants);
+   if(!await tx.projectMembership.count({where:{projectId,userId:actorId,user:{status:'APPROVED'}}}))throw new NotFoundException();
+   await lockRequired(tx,projectId,target.participants,actorId);
    const old=await tx.contractResponse.findUnique({where:{proposalId_actorId_responseKey:{proposalId,actorId,responseKey:idempotencyKey}}});
    if(old){if(old.payloadHash!==payloadHash)throw new ConflictException('Idempotency key already used');return responseReceipt(old,value.version);}
    if(proposal.currentVersion!==value.version||target.status!=='IN_REVIEW')throw new ConflictException('Review the latest proposal');

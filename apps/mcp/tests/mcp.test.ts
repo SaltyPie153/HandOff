@@ -34,7 +34,7 @@ test('MCP server advertises tools and validates arguments before sending', async
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_my_request', 'list_my_projects', 'resend_request', 'send_request']);
+    assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['get_contract','get_my_contract_proposal','get_my_request','list_active_contracts','list_my_projects','propose_contract','resend_request','revise_contract_proposal','send_request']);
     const result = await client.callTool({ name: 'list_my_projects', arguments: {} });
     assert.equal(result.isError, undefined);
     assert.equal(calls.length, 1);
@@ -51,6 +51,28 @@ test('MCP server advertises tools and validates arguments before sending', async
     await client.close();
     await server.close();
   }
+});
+
+test('contract MCP tools preserve exact version and retry keys without exposing a consent tool',async()=>{
+ const calls:Array<{url:string;init:RequestInit}>=[];
+ const server=createServer(new HandoffApiClient('https://handoff.example','private-token',async(url,init)=>{calls.push({url:String(url),init:init??{}});return new Response('{}');}));
+ const client=new Client({name:'contract-test',version:'1'});const [ct,st]=InMemoryTransport.createLinkedPair();
+ const id='4dafdeba-9bb7-4581-900a-b3f60d1bf081',other='b3258a04-d2e4-473c-8886-0946de9a8cce';
+ try{
+  await server.connect(st);await client.connect(ct);
+  const names=(await client.listTools()).tools.map(t=>t.name);assert.ok(!names.some(n=>/agree|respond|consent/.test(n)));
+  const input={projectId:id,recipientId:other,publicTitle:'title',proposedBody:'body',requiredPmIds:[],referencePmIds:[],idempotencyKey:'stable-contract-key'};
+  assert.equal((await client.callTool({name:'propose_contract',arguments:input})).isError,undefined);
+  assert.equal(calls.at(-1)?.url,'https://handoff.example/api/mcp/contracts');assert.deepEqual(JSON.parse(String(calls.at(-1)?.init.body)),input);
+  const revision={proposalId:id,expectedVersion:1,proposedBody:'v2',requiredPmIds:[],referencePmIds:[],idempotencyKey:'revision-key'};
+  assert.equal((await client.callTool({name:'revise_contract_proposal',arguments:revision})).isError,undefined);
+  assert.equal(calls.at(-1)?.url,`https://handoff.example/api/mcp/contract-proposals/${id}/versions`);
+  assert.equal(JSON.parse(String(calls.at(-1)?.init.body)).idempotencyKey,'revision-key');
+  await client.callTool({name:'get_my_contract_proposal',arguments:{proposalId:id,version:2}});assert.equal(calls.at(-1)?.url,`https://handoff.example/api/mcp/contract-proposals/${id}?version=2`);
+  await client.callTool({name:'list_active_contracts',arguments:{}});assert.equal(calls.at(-1)?.url,'https://handoff.example/api/mcp/contracts');
+  await client.callTool({name:'get_contract',arguments:{contractId:id}});assert.equal(calls.at(-1)?.url,`https://handoff.example/api/mcp/contracts/${id}`);
+  const count=calls.length;assert.equal((await client.callTool({name:'revise_contract_proposal',arguments:{...revision,expectedVersion:0}})).isError,true);assert.equal(calls.length,count);
+ }finally{await client.close();await server.close();}
 });
 
 test('MCP client rejects insecure remote origins and redacts API failures', async () => {

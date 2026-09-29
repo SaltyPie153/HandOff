@@ -51,4 +51,13 @@ export class HandoffApiClient {
   getMyRequest(requestId: string): Promise<unknown> {
     return this.call(`/api/mcp/requests/${encodeURIComponent(requestId)}`, 'GET');
   }
+  proposeContract(input:{projectId:string;recipientId:string;publicTitle:string;proposedBody:string;requiredPmIds:string[];referencePmIds:string[];idempotencyKey:string}){
+    return this.call('/api/mcp/contracts','POST',input);
+  }
+  reviseContractProposal(input:{proposalId:string;expectedVersion:number;proposedBody:string;requiredPmIds:string[];referencePmIds:string[];idempotencyKey:string}){
+    const {proposalId,...body}=input;return this.call(`/api/mcp/contract-proposals/${encodeURIComponent(proposalId)}/versions`,'POST',body);
+  }
+  getMyContractProposal(proposalId:string,version?:number){return this.call(`/api/mcp/contract-proposals/${encodeURIComponent(proposalId)}${version===undefined?'':`?version=${version}`}`,'GET');}
+  listActiveContracts(){return this.call('/api/mcp/contracts','GET');}
+  getContract(contractId:string){return this.call(`/api/mcp/contracts/${encodeURIComponent(contractId)}`,'GET');}
 }

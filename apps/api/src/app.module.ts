@@ -3,6 +3,7 @@ import { HealthModule } from './health/health.module.js';
 import { ProjectModule } from './projects/project.module.js';
 import { HandoffModule } from './handoff/handoff.module.js';
 import { EvidenceModule } from './evidence/evidence.module.js';
+import { ContractModule } from './contracts/contract.module.js';
 
 export type ApiConfig = {
   nodeEnv: string;
@@ -22,7 +23,7 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [HealthModule.register({ databaseUrl: config.databaseUrl }), ProjectModule.register(config),
-        HandoffModule.register(config), EvidenceModule.register(config)],
+        HandoffModule.register(config), EvidenceModule.register(config), ContractModule.register(config)],
       exports: [HealthModule]
     };
   }
