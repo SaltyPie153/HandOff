@@ -101,6 +101,7 @@ Cloud Storage: DB·첨부 백업, 7일 보관
 - 결정적 검사·Solar 입력은 공용 한 줄 파서를 사용한다. 관련 계약의 추가·교체·폐기를 포함한 정렬 참조 집합을 재수집 때와 게시 트랜잭션 안에서 비교한다. 등록 파일 개수/해시/dirty/신선도는 계약 참조와 분리해 검사한다.
 - 계약 쓰기는 프로젝트 근거 배타 advisory lock → 기존 전송 키/계약 행 → ID순 회원·멤버십 → grant/사람 세션 순서다. 게시는 같은 프로젝트의 공유 근거 lock → 요청 행 → 회원·멤버십 → grant 순서로 최신 계약 집합을 보호한다. 키는 `hashtextextended('handoff:contract-evidence:'+projectId,0)`이며 모델/파일 호출은 잠금 밖이다.
 - 실제 최초·변경·폐기 확정의 같은 트랜잭션에서 재확인 후보 job 행을 잠그고 최신 AWAITING_REVIEW/명시 claim/회신·사람 응답 없음과 기존 status/executionId 조건으로 PENDING을 저장한다. REVIEW_REQUIRED는 근거 실패 사유만 포함하고 PROCESSING은 실행 ID·lease를 무효화한다. 모델/키/권한 실패와 종료·구버전은 제외한다. 서버 수집은 사람 ContractReadAudit를 만들지 않는다. [실행 안내](../../specs/008-contract-evidence/quickstart.md)를 참조한다.
+- 작업 claim도 프로젝트 공유 잠금 후 조건부 job 갱신을 하는 짧은 트랜잭션이다. 확정의 재확인 조회 직후 생성된 요청·재전송까지 실행 시작을 직렬화해 확정 이벤트 손실을 막는다. 잠금 밖에서 근거를 읽고 외부 모델을 호출한다.
 
 ### 일반 인수인계의 사람 처리
 

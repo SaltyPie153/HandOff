@@ -44,15 +44,19 @@ export class HandoffBackgroundWorker {
     const now = new Date();
     const candidate = await this.prisma.handoffJob.findFirst({ where: { OR: [
       { status: 'PENDING' }, { status: 'PROCESSING', leaseUntil: { lt: now } }
-    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, versionId: true, status: true } });
+    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, versionId: true, status: true,request:{select:{projectId:true}} } });
     if (!candidate) return null;
     const executionId = randomUUID();
-    const claimed = await this.prisma.handoffJob.updateMany({ where: { versionId: candidate.versionId,
+    return this.prisma.$transaction(async tx=>{
+    // A confirmation either sees this execution or commits before the claim starts.
+    await lockContractEvidenceProject(tx,candidate.request.projectId,'READ');
+    const claimed = await tx.handoffJob.updateMany({ where: { versionId: candidate.versionId,
       ...(candidate.status === 'PENDING' ? { status: 'PENDING' as const } :
         { status: 'PROCESSING' as const, leaseUntil: { lt: now } }) },
       data: { status: 'PROCESSING', attempts: { increment: 1 }, executionId,
         leaseUntil: new Date(Date.now() + 10 * 60 * 1000) } });
     return claimed.count ? { requestId: candidate.requestId, versionId: candidate.versionId, executionId } : null;
+    });
   }
 
   private async review(versionId: string, executionId: string, reason: string) {

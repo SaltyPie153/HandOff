@@ -84,3 +84,30 @@ for(const first of ['human','requeue'])integration(`human completion is preserve
   assert.equal((await f.job(r)).status,'COMPLETED');assert.equal((await f.db.handoffVersion.findFirstOrThrow({where:{requestId:r.id}})).status,'ACKNOWLEDGED');assert.equal(await f.replies(r),0);
  }finally{resume.release();await Promise.allSettled([human,confirm].filter(Boolean));f.db.$transaction=transaction;await f.close();}
 });
+for(const mode of ['EXISTING_PENDING','NEW_REQUEST','NEW_VERSION'])integration(`${mode} claim waits for confirmation after its requeue snapshot`,async()=>{
+ const f=await workerFixture(),entered=barrier(),resume=barrier(),flow=new HandoffWorkflowRepository(f.db);
+ let running,confirm,finished=false;const transaction=f.db.$transaction.bind(f.db);try{
+  let r=mode==='NEW_REQUEST'?null:await f.request();
+  const c=await f.repo.propose(f.a,f.p,f.grant.id,{...f.input,proposedBody:claim,idempotencyKey:randomUUID()});
+  for(const id of [f.a,f.b])await f.repo.respond(id,f.p,c.proposalId,agree(),f.sessionFor(id));
+  f.db.$transaction=fn=>transaction(tx=>fn(new Proxy(tx,{get(target,property){
+   if(property==='$queryRaw')return async(strings,...values)=>{const result=await target.$queryRaw(strings,...values);if(strings.join('').includes('FROM handoff_jobs')){entered.release();await resume.promise;}return result;};
+   return target[property];
+  }})));
+  confirm=f.repo.respond(f.pm,f.p,c.proposalId,agree(),f.sessionFor(f.pm));
+  await Promise.race([entered.promise,confirm.then(()=>assert.fail('must pause after the requeue snapshot'))]);
+  if(mode==='NEW_REQUEST')r=await f.request();
+  if(mode==='NEW_VERSION')await flow.resend(f.a,f.p,r.id,f.grant.id,{expectedVersion:1,privateBody:'new version',verificationClaim:claim,idempotencyKey:randomUUID()});
+  running=f.worker.processPendingJobs(1).finally(()=>{finished=true;});
+  let locked=false;
+  for(let i=0;i<100;i++){
+   if(finished)assert.fail('claim must wait for the uncommitted project confirmation');
+   const rows=await f.db.$queryRaw`SELECT pid FROM pg_stat_activity WHERE application_name=${f.applicationName} AND wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock_shared%'`;
+   if(rows.length){locked=true;break;}await new Promise(r=>setTimeout(r,10));
+  }
+  assert.ok(locked,'must observe the claim waiting on the project lock');
+  resume.release();await confirm;await running;
+  const job=await f.db.handoffJob.findFirstOrThrow({where:{requestId:r.id,version:{version:mode==='NEW_VERSION'?2:1}}});
+  assert.equal(job.status,'COMPLETED');assert.equal(await f.replies(r),1);
+ }finally{resume.release();await Promise.allSettled([confirm,running].filter(Boolean));f.db.$transaction=transaction;await f.close();}
+});

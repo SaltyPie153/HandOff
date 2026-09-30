@@ -1,6 +1,6 @@
 # 확정 계약 근거 연결 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 프로젝트의 현재 유효 확정 계약을 명시적 사실 회신에 재사용하고, 계약 변경·폐기와 경합해도 오래된 근거로 게시하지 않는다.
 
@@ -55,7 +55,7 @@ Task1 실행 준비에서만 Git 제외된 `work/contract-evidence/node24.ps1`�
 
 **Interfaces:** Produces `parseClaim(value:string|null|undefined): {key:string;value:string}|null`, `extractClaimLines(content:string,key:string): {values:string[];lines:string[];malformed:boolean}`. parseClaim은 요청 전체를 임의 trim하지 않는다. extract는 각 소스 줄을 기존처럼 trim하며 CRLF를 허용한다. 동일 키 다음 공백+콜론/전각 콜론/등호 또는 키만 있는 줄은 같은 키의 후보로 보고, 정확한 `KEY: 값` 문법에 맞지 않으면 malformed다. `API_SCOPE_EXTRA`는 `API_SCOPE` 후보가 아니다. 함수는 네트워크·DB를 사용하지 않는다.
 
-- [ ] **Step1 — RED 작성:** `parseClaim('USER_ID_FORMAT: uuid-v4')`의 값 정확 보존, 자연어/null/1자 키/401자 값 거부. CRLF·들여쓰기된 정규 문구 추출, 같은 키 충돌 전체 탐색, `USER_ID_FORMAT:uuid-v4`·전각 콜론·등호·키만 있는 줄 malformed, 비슷한 다른 키 제외를 assert한다. 기존 LOCAL/GITHUB의 누락·만료 검토 회귀는 그대로 둔다.
+- [x] **Step1 — RED 작성:** `parseClaim('USER_ID_FORMAT: uuid-v4')`의 값 정확 보존, 자연어/null/1자 키/401자 값 거부. CRLF·들여쓰기된 정규 문구 추출, 같은 키 충돌 전체 탐색, `USER_ID_FORMAT:uuid-v4`·전각 콜론·등호·키만 있는 줄 malformed, 비슷한 다른 키 제외를 assert한다. 기존 LOCAL/GITHUB의 누락·만료 검토 회귀는 그대로 둔다.
 
 ```js
 assert.deepEqual(parseClaim('USER_ID_FORMAT: uuid-v4'), {key:'USER_ID_FORMAT',value:'uuid-v4'});
@@ -63,10 +63,10 @@ assert.equal(parseClaim('USER_ID_FORMAT: ' + 'x'.repeat(401)), null);
 assert.equal(extractClaimLines('USER_ID_FORMAT： uuid-v4', 'USER_ID_FORMAT').malformed, true);
 ```
 
-- [ ] **Step2 — RED 실행:** API build 후 `N24 --test apps/api/tests/evidence-clause.test.mjs`, `NPM run test --workspace @handoff/api`. 새 파서/모호한 줄 검사가 실패하는지 기록한다.
-- [ ] **Step3 — 최소 구현:** 공용 파서를 구현하고 decideReply 및 Solar 입력 줄 추출에 사용한다. 정확 비교의 값/대소문자 의미는 바꾸지 않는다. malformed는 사유 `근거 문구가 모호합니다`의 REVIEW_REQUIRED이며 모델을 호출하지 않는다. `EVIDENCE_REVIEW_REASONS:readonly string[]`에 `최신 근거가 부족합니다`, `근거가 누락되거나 서로 다릅니다`, `근거 문구가 모호합니다`, `근거가 처리 중 변경되었습니다`, `게시 전 근거가 변경되었습니다`를 정의하고 후속 판정/재확인에서 공유한다.
-- [ ] **Step4 — GREEN:** 같은 명령 성공. Solar request의 model=`solar-pro4`, 관련 정규 줄만 포함, unrelated private 문구 미포함과 REVIEW/비정상 종료 거부를 검사한다. 실모델 호출은 하지 않는다.
-- [ ] **Step5 — Commit:** `feat: share explicit evidence clause parsing`.
+- [x] **Step2 — RED 실행:** API build 후 `N24 --test apps/api/tests/evidence-clause.test.mjs`, `NPM run test --workspace @handoff/api`. 새 파서/모호한 줄 검사가 실패하는지 기록한다.
+- [x] **Step3 — 최소 구현:** 공용 파서를 구현하고 decideReply 및 Solar 입력 줄 추출에 사용한다. 정확 비교의 값/대소문자 의미는 바꾸지 않는다. malformed는 사유 `근거 문구가 모호합니다`의 REVIEW_REQUIRED이며 모델을 호출하지 않는다. `EVIDENCE_REVIEW_REASONS:readonly string[]`에 `최신 근거가 부족합니다`, `근거가 누락되거나 서로 다릅니다`, `근거 문구가 모호합니다`, `근거가 처리 중 변경되었습니다`, `게시 전 근거가 변경되었습니다`를 정의하고 후속 판정/재확인에서 공유한다.
+- [x] **Step4 — GREEN:** 같은 명령 성공. Solar request의 model=`solar-pro4`, 관련 정규 줄만 포함, unrelated private 문구 미포함과 REVIEW/비정상 종료 거부를 검사한다. 실모델 호출은 하지 않는다.
+- [x] **Step5 — Commit:** `feat: share explicit evidence clause parsing`.
 
 ### Task2: 유효 계약 후보 수집과 버전 참조
 
@@ -74,11 +74,11 @@ assert.equal(extractClaimLines('USER_ID_FORMAT： uuid-v4', 'USER_ID_FORMAT').ma
 
 **Interfaces:** Consumes Task1 파서와 기존 EvidenceRecord/Collection. Produces `collectContractEvidence(db:Pick<Prisma.TransactionClient,'developmentContract'>, projectId:string, claim:string|null|undefined, now:Date): Promise<EvidenceCollection>`와 `canonicalEvidenceRefs(records:EvidenceRecord[]): Array<{kind:string;sourceId:string;version:string}>`. `EvidenceService.collect(ownerId,projectId,now=new Date(),claim?:string|null)`의 마지막 인자로 claim을 추가해 기존 호출의 호환을 유지한다. claim이 없으면 계약을 추론해서 고르지 않는다.
 
-- [ ] **Step1 — RED 작성:** 웹 사람 동의 fixture로 `USER_ID_FORMAT: uuid-v4` 확정 후 수집 결과가 `HANDOFF_CONTRACT/contractId/currentVersionId`인지 assert한다. LOCAL 등록 없이도 수집, 동일키 두 계약 수집, unrelated 계약 제외, 미확정·다른 프로젝트·RETIRED·과거 버전 제외, 변경/철회 동안 기존 currentVersion 유지를 검사한다.
-- [ ] **Step2 — RED 실행:** API build 후 `N24 work/contract-evidence/run-db.mjs apps/api/tests/contract-evidence.integration.test.mjs`. 단위 skip이 아니라 실제 DB의 새 계약 근거 누락으로 실패해야 한다.
-- [ ] **Step3 — 최소 구현:** 프로젝트 ACTIVE/currentVersion과 그 버전의 contractId·status=CONFIRMED·kind INITIAL/CHANGE를 검증해 수집한다. currentVersion 없는 잘못된 ACTIVE는 `CONTRACT_UNAVAILABLE`로 실패하고 lastConfirmed로 대체하지 않는다. 같은 키의 malformed 후보도 판정에 전달해 조용히 제외하지 않는다. 관측 시각=now, 버전=불변 UUID. 참조는 kind/sourceId/version순으로 정렬한다.
-- [ ] **Step4 — GREEN:** 데이터 정합성 실패에는 mock DB 객체를 사용해 누락/다른 소속 currentVersion의 unavailable을 검사한다(SQL 제약 우회 없음). B 미승인/멤버 제외 시 수집 차단, 같은 키 충돌/파일 만료 REVIEW, 24시간보다 오래된 유효 확정본 포함을 검사한다. 서버 수집이 ContractReadAudit·ContractResponse·HandoffResponse를 생성하지 않는지도 assert한다.
-- [ ] **Step5 — Commit:** `feat: collect active confirmed contract evidence`.
+- [x] **Step1 — RED 작성:** 웹 사람 동의 fixture로 `USER_ID_FORMAT: uuid-v4` 확정 후 수집 결과가 `HANDOFF_CONTRACT/contractId/currentVersionId`인지 assert한다. LOCAL 등록 없이도 수집, 동일키 두 계약 수집, unrelated 계약 제외, 미확정·다른 프로젝트·RETIRED·과거 버전 제외, 변경/철회 동안 기존 currentVersion 유지를 검사한다.
+- [x] **Step2 — RED 실행:** API build 후 `N24 work/contract-evidence/run-db.mjs apps/api/tests/contract-evidence.integration.test.mjs`. 단위 skip이 아니라 실제 DB의 새 계약 근거 누락으로 실패해야 한다.
+- [x] **Step3 — 최소 구현:** 프로젝트 ACTIVE/currentVersion과 그 버전의 contractId·status=CONFIRMED·kind INITIAL/CHANGE를 검증해 수집한다. currentVersion 없는 잘못된 ACTIVE는 `CONTRACT_UNAVAILABLE`로 실패하고 lastConfirmed로 대체하지 않는다. 같은 키의 malformed 후보도 판정에 전달해 조용히 제외하지 않는다. 관측 시각=now, 버전=불변 UUID. 참조는 kind/sourceId/version순으로 정렬한다.
+- [x] **Step4 — GREEN:** 데이터 정합성 실패에는 mock DB 객체를 사용해 누락/다른 소속 currentVersion의 unavailable을 검사한다(SQL 제약 우회 없음). B 미승인/멤버 제외 시 수집 차단, 같은 키 충돌/파일 만료 REVIEW, 24시간보다 오래된 유효 확정본 포함을 검사한다. 서버 수집이 ContractReadAudit·ContractResponse·HandoffResponse를 생성하지 않는지도 assert한다.
+- [x] **Step5 — Commit:** `feat: collect active confirmed contract evidence`.
 
 ### Task3: 최종 게시의 근거 집합·권한·잠금 검사
 
@@ -86,11 +86,11 @@ assert.equal(extractClaimLines('USER_ID_FORMAT： uuid-v4', 'USER_ID_FORMAT').ma
 
 **Interfaces:** Produces `lockContractEvidenceProject(tx:Prisma.TransactionClient,projectId:string,mode:'READ'|'WRITE'):Promise<void>`. 기존 프로젝트 UUID로 `hashtextextended('handoff:contract-evidence:'+projectId,0)` 키를 만들고 READ는 pg_advisory_xact_lock_shared, WRITE는 pg_advisory_xact_lock을 호출한다. 계약 쓰기의 advisory/sendKey·계약 행·권한 잠금보다 먼저 호출한다. worker.publish는 기존 signature를 유지하되 request의 projectId를 별도 읽기로 찾고 공유 잠금 후 request를 다시 검증한다.
 
-- [ ] **Step1 — RED 작성:** fake AgentRunner + 격리 AgentKeyStore로 계약만 있는 요청의 자동 회신 하나, 정확한 evidenceRefs, 최소 공개 body와 사람 상태 미변경을 assert한다. 모델 실패/KEY 없는 자연어 검토도 assert한다. fake runner의 barrier 동안 계약 변경·폐기·새 충돌 계약 확정 시 이전 근거 회신0건을 검사한다.
-- [ ] **Step2 — RED 실행:** API build 후 run-db로 worker/concurrency 새 파일 실행. 기존 파일 개수 비교 때문에 계약-only 게시가 실패하거나 마지막 집합 검사가 없는 실패를 확인한다.
-- [ ] **Step3 — 최소 구현:** worker의 두 collect 호출에 최신 claim을 전달하고 정렬 참조 집합을 비교한다. publish의 프로젝트 공유 잠금 안에서 claim별 계약을 다시 읽고 정확한 집합과 decideReply를 검증한다. 외부파일 refs와 계약 refs를 나눠 파일 등록 개수·로컬 해시/dirty/신선도 검사를 유지한다. 계약 저장소 propose/proposeFollowup/revise/respond/withdraw의 첫 트랜잭션 잠금은 프로젝트 WRITE로 통일한다. 외부 모델/파일 호출을 잠금 안으로 넣지 않는다.
-- [ ] **Step4 — GREEN:** 실제 별도 PG 연결의 잠금과 pg_stat_activity wait를 사용해 게시 선행/계약 확정 선행 양쪽을 강제한다(시간 sleep에 기대지 않음). grant 철회·B 제거·lease 만료·새 요청 버전·사람 회신·키 교체 시 0게시, 동시 worker는1게시, 기존 파일-only 경로 정상, 새 계약 추가를 놓치지 않음을 검사한다. 새 프로젝트 잠금으로 바뀐 기존 contract concurrency 테스트의 관측 기대도 실제 잠금에 맞춰 갱신한다.
-- [ ] **Step5 — Commit:** `fix: validate contract evidence atomically before publication`.
+- [x] **Step1 — RED 작성:** fake AgentRunner + 격리 AgentKeyStore로 계약만 있는 요청의 자동 회신 하나, 정확한 evidenceRefs, 최소 공개 body와 사람 상태 미변경을 assert한다. 모델 실패/KEY 없는 자연어 검토도 assert한다. fake runner의 barrier 동안 계약 변경·폐기·새 충돌 계약 확정 시 이전 근거 회신0건을 검사한다.
+- [x] **Step2 — RED 실행:** API build 후 run-db로 worker/concurrency 새 파일 실행. 기존 파일 개수 비교 때문에 계약-only 게시가 실패하거나 마지막 집합 검사가 없는 실패를 확인한다.
+- [x] **Step3 — 최소 구현:** worker의 두 collect 호출에 최신 claim을 전달하고 정렬 참조 집합을 비교한다. publish의 프로젝트 공유 잠금 안에서 claim별 계약을 다시 읽고 정확한 집합과 decideReply를 검증한다. 외부파일 refs와 계약 refs를 나눠 파일 등록 개수·로컬 해시/dirty/신선도 검사를 유지한다. 계약 저장소 propose/proposeFollowup/revise/respond/withdraw의 첫 트랜잭션 잠금은 프로젝트 WRITE로 통일한다. 외부 모델/파일 호출을 잠금 안으로 넣지 않는다.
+- [x] **Step4 — GREEN:** 실제 별도 PG 연결의 잠금과 pg_stat_activity wait를 사용해 게시 선행/계약 확정 선행 양쪽을 강제한다(시간 sleep에 기대지 않음). grant 철회·B 제거·lease 만료·새 요청 버전·사람 회신·키 교체 시 0게시, 동시 worker는1게시, 기존 파일-only 경로 정상, 새 계약 추가를 놓치지 않음을 검사한다. 새 프로젝트 잠금으로 바뀐 기존 contract concurrency 테스트의 관측 기대도 실제 잠금에 맞춰 갱신한다.
+- [x] **Step5 — Commit:** `fix: validate contract evidence atomically before publication`.
 
 ### Task4: 계약 확정 이벤트의 재확인과 실행 무효화
 
@@ -98,11 +98,11 @@ assert.equal(extractClaimLines('USER_ID_FORMAT： uuid-v4', 'USER_ID_FORMAT').ma
 
 **Interfaces:** Produces `requeueContractEvidenceJobs(tx:Prisma.TransactionClient,projectId:string):Promise<number>`. contract.respond의 실제 최초/변경/폐기 CONFIRMED 분기에서 포인터 변경과 같은 트랜잭션으로 호출한다. 소비하는 기존 HandoffJob 필드는 status/executionId/leaseUntil/reviewReason/reviewDraft/evidenceRefs다. responseReceipt의 재시도 반환이나 비최종 동의는 호출하지 않는다.
 
-- [ ] **Step1 — RED 작성:** 근거 부족 REVIEW_REQUIRED 요청이 최초 확정 뒤 PENDING, 새 실행에서 COMPLETED/회신1건인지 assert한다. 변경/폐기 시 PROCESSING executionId=null·lease=null·PENDING과 이전 fake runner의 지연 완료가 게시·검토 결과를 덮어쓰지 못함을 assert한다.
-- [ ] **Step2 — RED 실행:** API build/run-db로 새 requeue 파일 실행. 현재 계약 확정이 작업을 깨우지 않는 실패를 확인한다.
-- [ ] **Step3 — 최소 구현:** projectId 일치, 최신 버전=currentVersion, status=AWAITING_REVIEW, 유효 parseClaim, reply 없음, REVIEW_REQUIRED의 `EVIDENCE_REVIEW_REASONS` 또는 PROCESSING인 작업만 갱신한다. worker는 실제 근거 집합 불일치를 `게시 전 근거가 변경되었습니다`로 구분하며 권한/lease 실패의 기존 포괄 사유는 재확인 대상에서 제외한다. 대상 PENDING 상태·기존 실행 ID 무효화·검토 초안 초기화를 원자 저장한다. 갱신 SQL/where에는 선택 시 status·executionId와 최신 요청/회신 조건을 포함해 대기 중 사람 처리로 COMPLETED가 된 작업을 덮어쓰지 않는다.
-- [ ] **Step4 — GREEN:** 이미 사람 응답/사람 회신/자동 회신/COMPLETED/구버전/claim 없음/다른 프로젝트/키·모델 실패/권한 실패는 재실행0건이다. 전송·수정·철회·동의 재시도는 재확인0건. 변경 확정과 이전 실행 review 저장 양쪽 순서를 barrier로 강제해 반드시 최신 작업이 남고 사용자 종료 상태가 보존되는지 확인한다. 위 조건 필터로 업데이트 직전 사람 처리 경합도 검사한다.
-- [ ] **Step5 — Commit:** `feat: recheck waiting requests after contract evidence changes`.
+- [x] **Step1 — RED 작성:** 근거 부족 REVIEW_REQUIRED 요청이 최초 확정 뒤 PENDING, 새 실행에서 COMPLETED/회신1건인지 assert한다. 변경/폐기 시 PROCESSING executionId=null·lease=null·PENDING과 이전 fake runner의 지연 완료가 게시·검토 결과를 덮어쓰지 못함을 assert한다.
+- [x] **Step2 — RED 실행:** API build/run-db로 새 requeue 파일 실행. 현재 계약 확정이 작업을 깨우지 않는 실패를 확인한다.
+- [x] **Step3 — 최소 구현:** projectId 일치, 최신 버전=currentVersion, status=AWAITING_REVIEW, 유효 parseClaim, reply 없음, REVIEW_REQUIRED의 `EVIDENCE_REVIEW_REASONS` 또는 PROCESSING인 작업만 갱신한다. worker는 실제 근거 집합 불일치를 `게시 전 근거가 변경되었습니다`로 구분하며 권한/lease 실패의 기존 포괄 사유는 재확인 대상에서 제외한다. 대상 PENDING 상태·기존 실행 ID 무효화·검토 초안 초기화를 원자 저장한다. 갱신 SQL/where에는 선택 시 status·executionId와 최신 요청/회신 조건을 포함해 대기 중 사람 처리로 COMPLETED가 된 작업을 덮어쓰지 않는다.
+- [x] **Step4 — GREEN:** 이미 사람 응답/사람 회신/자동 회신/COMPLETED/구버전/claim 없음/다른 프로젝트/키·모델 실패/권한 실패는 재실행0건이다. 전송·수정·철회·동의 재시도는 재확인0건. 변경 확정과 이전 실행 review 저장 양쪽 순서를 barrier로 강제해 반드시 최신 작업이 남고 사용자 종료 상태가 보존되는지 확인한다. 위 조건 필터로 업데이트 직전 사람 처리 경합도 검사한다.
+- [x] **Step5 — Commit:** `feat: recheck waiting requests after contract evidence changes`.
 
 ### Task5: 형식 안내와 전체 사용자 흐름 검증
 
@@ -110,11 +110,11 @@ assert.equal(extractClaimLines('USER_ID_FORMAT： uuid-v4', 'USER_ID_FORMAT').ma
 
 **Interfaces:** 공개 API/MCP 입력 불변. 도움말 `자동 사실 확인에 사용할 항목은 USER_ID_FORMAT: uuid-v4처럼 KEY: 값 한 줄로 명시해 주세요. 자연어만으로는 자동 확인하지 않습니다.`를 최초/변경 제안에만 표시한다. 폐기 이유에는 추가하지 않는다.
 
-- [ ] **Step1 — RED 작성/실행:** web 테스트에서 최초/변경 도움말과 RETIRE 미표시를 assert하고 `NPM run test --workspace @handoff/web` 실패 확인. 새 E2E는 A/B 웹 합의 → A MCP KEY 요청 → C 최소 회신 표시·본문 비노출 → 계약 폐기 뒤 같은 claim의 새 요청은 B 검토로 끝나는 흐름을 작성한다.
-- [ ] **Step2 — 최소 구현:** 작은 도움말만 추가한다. E2E의 모델 결과는 fixture worker의 주입 fake AgentRunner로 제공한다. existing control URL의 `/stop`으로 격리 API 자동 worker를 정지하고, built Prisma/worker/격리 fake key store로 실제 작업을 처리한 뒤 `/start`로 복구해 UI를 검사한다. 서버가 먼저 키 부족 검토로 처리한 경우 wakeUnavailableJobs로 재확인한다. helper는 test-only 파일이며 서비스 URL/토큰 guard·finally 복구·temp 경로 검증을 따른다. 실제 공급자 호출이나 production test endpoint를 추가하지 않는다.
-- [ ] **Step3 — GREEN:** web 테스트 및 `N24 node_modules/@playwright/test/cli.js test tests/e2e/contract-evidence.spec.ts` 성공. E2E는 browser/server/DB 통합이며 Solar 결과는 주입 모의라는 한계를 기록한다. 폐기 후 새 요청의 자동 회신0건, C에게 비공개 claim 미포함을 assert한다.
-- [ ] **Step4 — 전체 검증:** 순차 `NPM run build`, `NPM run typecheck`, `NPM test`, `NPM run test:integration`, `NPM run test:e2e`. `rtk proxy pwsh -NoProfile -File scripts/check-harness.ps1`, `... scripts/test-harness.ps1`, `rtk proxy git diff --check`. 실패는 원인 확인·수정 후 영향 범위 재검증. 실제 코드가 바뀌지 않으면 성공한 전체 검사를 반복하지 않는다.
-- [ ] **Step5 — 기록/리뷰/Commit:** 검증 명령·종료 코드·DB unit skip·모델 모의 여부를 validation에 적고 R27/R28/R29 상태와 남은 운영 한계를 갱신한다. 직접 구현의 최종 독립 리뷰에 spec/plan/diff/실제 결과를 제공하고 필요한 수정·회귀 검사를 마친 뒤 `feat: verify and document confirmed contract evidence replies`로 커밋한다. push/PR/merge·실키 복사·실모델 호출은 별도 사용자 요청을 따른다.
+- [x] **Step1 — RED 작성/실행:** web 테스트에서 최초/변경 도움말과 RETIRE 미표시를 assert하고 `NPM run test --workspace @handoff/web` 실패 확인. 새 E2E는 A/B 웹 합의 → A MCP KEY 요청 → C 최소 회신 표시·본문 비노출 → 계약 폐기 뒤 같은 claim의 새 요청은 B 검토로 끝나는 흐름을 작성한다.
+- [x] **Step2 — 최소 구현:** 작은 도움말만 추가한다. E2E의 모델 결과는 fixture worker의 주입 fake AgentRunner로 제공한다. existing control URL의 `/stop`으로 격리 API 자동 worker를 정지하고, built Prisma/worker/격리 fake key store로 실제 작업을 처리한 뒤 `/start`로 복구해 UI를 검사한다. 서버가 먼저 키 부족 검토로 처리한 경우 wakeUnavailableJobs로 재확인한다. helper는 test-only 파일이며 서비스 URL/토큰 guard·finally 복구·temp 경로 검증을 따른다. 실제 공급자 호출이나 production test endpoint를 추가하지 않는다.
+- [x] **Step3 — GREEN:** web 테스트 및 `N24 node_modules/@playwright/test/cli.js test tests/e2e/contract-evidence.spec.ts` 성공. E2E는 browser/server/DB 통합이며 Solar 결과는 주입 모의라는 한계를 기록한다. 폐기 후 새 요청의 자동 회신0건, C에게 비공개 claim 미포함을 assert한다.
+- [x] **Step4 — 전체 검증:** 순차 `NPM run build`, `NPM run typecheck`, `NPM test`, `NPM run test:integration`, `NPM run test:e2e`. `rtk proxy pwsh -NoProfile -File scripts/check-harness.ps1`, `... scripts/test-harness.ps1`, `rtk proxy git diff --check`. 실패는 원인 확인·수정 후 영향 범위 재검증. 실제 코드가 바뀌지 않으면 성공한 전체 검사를 반복하지 않는다.
+- [x] **Step5 — 기록/리뷰/Commit:** 검증 명령·종료 코드·DB unit skip·모델 모의 여부를 validation에 적고 R27/R28/R29 상태와 남은 운영 한계를 갱신한다. 직접 구현의 최종 독립 리뷰에 spec/plan/diff/실제 결과를 제공하고 필요한 수정·회귀 검사를 마친 뒤 `feat: verify and document confirmed contract evidence replies`로 커밋한다. push/PR/merge·실키 복사·실모델 호출은 별도 사용자 요청을 따른다.
 
 ## 자체 검토와 수용 기준 매핑
 
