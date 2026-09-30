@@ -52,9 +52,30 @@ Node.js24.19.0, PostgreSQL17 Docker의 disposable Compose 시험 환경을 사�
 | focused DB helper 파일별 순차 실행 | 정식 runner와 일치, 전역 worker 큐 시험 간섭 제거 | focused 검증 시간 증가, 같은 시험의 동시 worker 검사는 유지 |
 | claim을 프로젝트 READ 잠금 안에서 조건부 갱신 | 재확인 조회 이후 생성된 요청·버전의 이벤트 손실 방지 | 계약 쓰기 동안 작업 시작이 잠깐 대기, 외부 호출은 잠금 밖 |
 
+## 실제 계정·Solar 수동 검증
+
+구현 커밋 `0f8f3e2`에서 진행했다. 원본 계약 시험 DB를 읽기용 `pg_dump`로 복제하고, WEB5582/API3310/DB55442의 별도 환경을 사용했다. 원본 컨테이너는 작업 전의 중지 상태로 돌렸으며 원본 데이터·로컬 변경을 보존했다. 기존 Upstage 보호 파일의 키는 별도 보호 파일에 ACL을 적용해 보관했다. 비밀 값은 출력하거나 Git에 저장하지 않았다.
+
+| 명령/행동 | 실제 결과·근거 |
+|---|---|
+| `node work/contract-evidence/prepare-manual.mjs` | 종료0. DB 복제·Prisma migration10개 확인, 추가 적용0. 기존 멤버3/유효 세션3/완료 작업2 유지, 등록 파일 근거0 |
+| `start-manual.ps1`, `node work/contract-evidence/health-manual.mjs` | API·웹 숨김 실행. 종료 시에도 웹 `/dev/health`·API `/api/health/ready`·웹 API proxy 모두200, DB ok |
+| MCP `list_my_projects` | 첫 실행 `HandOff API is unavailable`. 기존 MCP가3310을 사용함을 주소만 확인하고 새 시험 API 포트를 맞춘 뒤 성공. 전역 설정·토큰 변경 없음 |
+| A/B/C 프로젝트 룸 | 세 계정 모두 룸 표시를 사용자 확인 |
+| MCP `propose_contract`, `send_request` | 실제 A의 MCP로 시험 계약 및 동일 `USER_ID_FORMAT: uuid-v4` claim 요청 생성 성공 |
+| 계약 동의 전 `observe-manual.mjs` | 종료0. REVIEW_REQUIRED/‘최신 근거가 부족합니다’, attempts1/자동 회신0/사람 응답0. 미확정 계약은 근거에서 제외 |
+| A/B 웹 동의 | 사용자 각자 동의 후 실제 DB ACTIVE·현재 버전 CONFIRMED·사람 동의2. 같은 요청이 확정 이벤트로 PENDING 재등록됨을 관측 |
+| 실제 Upstage Solar Pro4 자동 확인 | 정상 `ManagedAgentRunner`로 재검사 후 COMPLETED/attempts2/자동 회신1. HANDOFF_CONTRACT refs가 해당 계약·확정 버전을 가리킴. 모의 runner 사용 없음 |
+| 사람 동의·확인 분리 | 모델 처리 전후 계약 동의2/읽기 감사6 유지. 자동 회신 뒤에도 요청 AWAITING_REVIEW·사람 응답0. 서버가 사람의 동의·확인 이력을 대신 생성하지 않음을 관측 |
+| 공개 내용 검사 `public-summary.mjs` | 종료0. 공개 자동 회신에 비공개 시험 본문 표식·claim 키·값 포함=false |
+| B/C 화면 | B의 첨부 화면에서 자동 회신1과 별도 ‘내용 확인 완료’ 버튼 확인. C는 피드 회신 열람·비공개 본문 미표시·직접 상세 접근 차단을 사용자 확인 |
+| B의 ‘내용 확인 완료’ 뒤 `observe-manual.mjs` | 종료0. ACKNOWLEDGED/사람 응답1, 자동 회신1 유지. 사용자 화면도 확인 완료로 전환 |
+
+수동 관측 스크립트는 같은 ignored Node24 helper로 실행했다. B의 최초 ‘회신 또는 버튼이 안 보임’ 답변은 이어 제공된 실제 스크린샷에서 둘 다 표시됨을 확인해 정정했다. 구현 코드 수정은 필요하지 않았다. 변경·폐기·경합의 정밀 검사는 앞선 실제 DB 통합 및 모의 Solar E2E 결과와 구분한다.
+
 ## 한계와 미검증
 
 - 단위 명령의 DB skip은 실DB 통과와 구분한다. 위 DB 결과는 실제 migration이 적용된 격리 DB에서 skip0이다.
-- E2E는 실제 브라우저·웹·API·DB를 사용하지만 Solar 결과는 주입 모의다. 새 기능의 실제 Upstage 키·모델 호출은 실행하지 않았다.
-- 수동 A/B/C 계정 검증, PC 종료·장시간 운영, 비공개 GitHub 자격, GCP 배포·백업·복구는 미실행이다.
+- 자동 E2E는 실제 브라우저·웹·API·DB를 사용하지만 Solar 결과는 주입 모의다. 실제 키·Solar 모델·A/B/C 계정의 핵심 흐름은 위 수동 시험으로 확인했다.
+- PC 종료·장시간 운영, 비공개 GitHub 자격, GCP 배포·백업·복구는 미실행이다. 새 포트에서 OAuth 신규 로그인은 재시험하지 않고 기존 유효 세션을 사용했다.
 - 공개 API·DB schema·공급자·키 보관 방식 변경 없음. push·PR·merge·운영 배포는 이 검증에 포함되지 않는다.
