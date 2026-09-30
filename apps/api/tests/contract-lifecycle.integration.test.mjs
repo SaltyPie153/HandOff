@@ -48,7 +48,7 @@ integration('retirement preserves last confirmed body and initial withdrawal can
   await assert.rejects(repo.propose(f.a,f.p,f.grant.id,{...f.input,previousContractId:linked.contractId,idempotencyKey:randomUUID()}),status(404));
  }finally{await f.close();}
 });
-async function waiting(f,count){for(let i=0;i<100;i++){const r=await f.db.$queryRaw`SELECT count(*)::int n FROM pg_stat_activity WHERE application_name=${f.applicationName} AND wait_event_type='Lock' AND position('FOR UPDATE' in query)>0`;if(r[0].n>=count)return;await setTimeout(10);}assert.fail('Expected database lock wait');}
+async function waiting(f,fragment){for(let i=0;i<100;i++){const r=await f.db.$queryRaw`SELECT count(*)::int n FROM pg_stat_activity WHERE application_name=${f.applicationName} AND wait_event_type='Lock' AND position(${fragment} in query)>0`;if(r[0].n>=1)return;await setTimeout(10);}assert.fail('Expected database lock wait for '+fragment);}
 integration('withdrawal versus consent or revision and competing proposals serialize in both orders',async()=>{
  const f=await fixture(),repo=new ContractRepository(f.db);try{
   assert.equal(typeof repo.withdraw,'function');
@@ -59,7 +59,7 @@ integration('withdrawal versus consent or revision and competing proposals seria
    const commands=kind==='proposal'?[()=>repo.proposeFollowup(f.a,f.p,r.contractId,f.grant.id,follow('CHANGE',r.versionId)),()=>repo.proposeFollowup(f.a,f.p,r.contractId,f.grant.id,follow('RETIRE',r.versionId))]:[w,kind==='consent'?()=>repo.respond(f.b,f.p,r.proposalId,action(1),f.sessionFor(f.b)):()=>repo.revise(f.a,f.p,r.proposalId,f.grant.id,{expectedVersion:1,proposedBody:'new',requiredPmIds:[],referencePmIds:[],idempotencyKey:randomUUID()})];
    let release,ready;const gate=new Promise(r=>release=r),acquired=new Promise(r=>ready=r),pending=[];
    const blocker=f.db.$transaction(async tx=>{await tx.$queryRaw`SELECT id FROM development_contracts WHERE id=${r.contractId}::uuid FOR UPDATE`;ready();await gate;});await acquired;
-   try{pending.push(commands[first]());void pending[0].catch(()=>{});await waiting(f,1);pending.push(commands[1-first]());void pending[1].catch(()=>{});await waiting(f,2);}finally{release();await blocker;await Promise.allSettled(pending);}
+   try{pending.push(commands[first]());void pending[0].catch(()=>{});await waiting(f,'FOR UPDATE');pending.push(commands[1-first]());void pending[1].catch(()=>{});await waiting(f,'pg_advisory_xact_lock');}finally{release();await blocker;await Promise.allSettled(pending);}
    const result=await Promise.allSettled(pending);assert.equal(result[0].status,'fulfilled');assert.equal(result[1].status,'rejected');assert.ok(status(409)(result[1].reason));
    const q=await f.db.contractProposal.findUnique({where:{id:r.proposalId}});if(kind!=='proposal')assert.equal(q.lifecycle,first===0?'WITHDRAWN':kind==='consent'?'CONFIRMED':'OPEN');
    assert.equal(await f.db.contractProposal.count({where:{contractId:r.contractId,lifecycle:'OPEN'}}),kind==='proposal'||kind==='revision'&&first===1?1:0);

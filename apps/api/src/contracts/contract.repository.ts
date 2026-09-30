@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {PrismaService} from '../database/prisma.service.js';
 import type {Prisma,ContractProposalVersion,ContractResponse} from '../generated/prisma/client.js';
 import {requireMember,requireGrant} from '../handoff/handoff-workflow.js';
+import {lockContractEvidenceProject} from '../evidence/contract-evidence.js';
 import {normalizeProposal,normalizeRevision,normalizeResponse,normalizeFollowup,normalizeWithdrawal,participants} from './contract-policy.js';
 import type {FollowupContractInput,WithdrawContractInput,WithdrawalReceipt,HumanSession} from './contract.types.js';
 import type {ProposeContractInput,ReviseContractInput,ContractResponseInput,ProposalReceipt,ResponseReceipt} from './contract.types.js';
@@ -42,6 +43,7 @@ export class ContractRepository{
  async proposeFollowup(actorId:string,projectId:string,contractId:string,grantId:string,input:FollowupContractInput):Promise<ProposalReceipt>{
   const value=normalizeFollowup(input),{idempotencyKey,...payload}=value,payloadHash=hash({projectId,contractId,...payload});
   return this.prisma.$transaction(async tx=>{
+   await lockContractEvidenceProject(tx,projectId,'WRITE');
    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'contract:'+actorId+':'+idempotencyKey}))::text`;
    await tx.$queryRaw`SELECT id FROM development_contracts WHERE id=${contractId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`;
    const contract=await tx.developmentContract.findFirst({where:{id:contractId,projectId,senderId:actorId}});
@@ -62,6 +64,7 @@ export class ContractRepository{
  async withdraw(actorId:string,projectId:string,proposalId:string,input:WithdrawContractInput,session:HumanSession):Promise<WithdrawalReceipt>{
   const value=normalizeWithdrawal(input),{idempotencyKey,...payload}=value,payloadHash=hash(payload);
   return this.prisma.$transaction(async tx=>{
+   await lockContractEvidenceProject(tx,projectId,'WRITE');
    const proposal=await lockProposal(tx,proposalId,projectId);
    if(proposal.senderId!==actorId||!await tx.projectMembership.count({where:{projectId,userId:actorId,user:{status:'APPROVED'}}}))throw new NotFoundException();
    const latest=proposal.versions[0];await lockRequired(tx,projectId,latest.participants,actorId);await requireSession(tx,actorId,session);
@@ -81,6 +84,7 @@ export class ContractRepository{
   const value=normalizeProposal(actorId,input),{idempotencyKey,...payload}=value,payloadHash=hash({projectId,...payload});
   const rows=participants(actorId,value.recipientId,value.requiredPmIds,value.referencePmIds);
   return this.prisma.$transaction(async tx=>{
+   await lockContractEvidenceProject(tx,projectId,'WRITE');
    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'contract:'+actorId+':'+idempotencyKey}))::text`;
    for(const id of rows.map(p=>p.userId).sort())await requireMember(tx,id,projectId);
    await requireGrant(tx,grantId,actorId,projectId);
@@ -96,6 +100,7 @@ export class ContractRepository{
  async revise(actorId:string,projectId:string,proposalId:string,grantId:string,input:ReviseContractInput):Promise<ProposalReceipt>{
   const value=normalizeRevision(input),{idempotencyKey,...payload}=value,payloadHash=hash(payload);
   return this.prisma.$transaction(async tx=>{
+   await lockContractEvidenceProject(tx,projectId,'WRITE');
    const proposal=await lockProposal(tx,proposalId,projectId);
    if(proposal.senderId!==actorId)throw new NotFoundException();
    if(!await tx.projectMembership.count({where:{projectId,userId:actorId,user:{status:'APPROVED'}}}))throw new NotFoundException();
@@ -119,6 +124,7 @@ export class ContractRepository{
  async respond(actorId:string,projectId:string,proposalId:string,input:ContractResponseInput,session:{tokenHash:string;csrfHash:string}):Promise<ResponseReceipt>{
   const value=normalizeResponse(input),{idempotencyKey,...payload}=value,payloadHash=hash(payload);
   return this.prisma.$transaction(async tx=>{
+   await lockContractEvidenceProject(tx,projectId,'WRITE');
    const proposal=await lockProposal(tx,proposalId,projectId);
    const target=await tx.contractProposalVersion.findUnique({where:{proposalId_version:{proposalId,version:value.version}},include:{participants:true}});
    if(!target||!target.participants.some(p=>p.userId===actorId&&p.role!=='REFERENCE_PM'))throw new NotFoundException();
