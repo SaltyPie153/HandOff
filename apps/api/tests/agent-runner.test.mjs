@@ -40,3 +40,15 @@ test('does not confirm an ambiguous Solar response', async () => {
     ], 'upstage-fake-key'), false);
   } finally { globalThis.fetch = previous; }
 });
+
+test('normalizes evidence indentation consistently and rejects malformed related lines before calling Solar',async()=>{
+ const previous=globalThis.fetch;let request;let calls=0;
+ globalThis.fetch=async(input,init)=>{calls++;request=JSON.parse(String(init?.body));return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'CONFIRMED'}}]}),{status:200,headers:{'Content-Type':'application/json'}});};
+ try{
+  const runner=new ManagedAgentRunner();
+  assert.equal(await runner.confirmExplicitClaim('USER_ID_FORMAT: uuid-v4',[{content:'  USER_ID_FORMAT: uuid-v4\r\nOTHER: private'}],'upstage-fake-key'),true);
+  assert.deepEqual(JSON.parse(request.messages[1].content).evidenceLines,[['USER_ID_FORMAT: uuid-v4']]);
+  assert.equal(await runner.confirmExplicitClaim('USER_ID_FORMAT: uuid-v4',[{content:'USER_ID_FORMAT: uuid-v4\nUSER_ID_FORMAT： uuid-v7'}],'upstage-fake-key'),false);
+  assert.equal(calls,1);
+ }finally{globalThis.fetch=previous;}
+});
