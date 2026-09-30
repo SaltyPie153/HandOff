@@ -23,7 +23,7 @@ integration('publication holding shared project lock commits before a waiting co
   running=f.worker.processPendingJobs(1);await Promise.race([entered.promise,running.then(()=>assert.fail('must validate contracts inside transaction'))]);
   retiring=f.repo.respond(f.pm,f.p,retire.proposalId,{version:1,action:'AGREE',idempotencyKey:crypto.randomUUID()},f.sessionFor(f.pm));
   await waitLock(f);resume.release();await running;await retiring;
-  assert.equal(await f.replies(r),1);assert.equal((await f.db.developmentContract.findUniqueOrThrow({where:{id:base.contractId}})).status,'RETIRED');
+  assert.equal(await f.replies(r),1);assert.equal((await f.job(r)).status,'COMPLETED');assert.equal((await f.db.developmentContract.findUniqueOrThrow({where:{id:base.contractId}})).status,'RETIRED');
  }finally{resume.release();await running;await retiring;f.db.$transaction=transaction;await f.close();}
 });
 integration('retirement holding exclusive project lock commits before a waiting publication',async()=>{

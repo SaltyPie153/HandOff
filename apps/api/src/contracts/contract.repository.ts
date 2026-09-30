@@ -4,6 +4,7 @@ import {PrismaService} from '../database/prisma.service.js';
 import type {Prisma,ContractProposalVersion,ContractResponse} from '../generated/prisma/client.js';
 import {requireMember,requireGrant} from '../handoff/handoff-workflow.js';
 import {lockContractEvidenceProject} from '../evidence/contract-evidence.js';
+import {requeueContractEvidenceJobs} from '../handoff/contract-evidence-requeue.js';
 import {normalizeProposal,normalizeRevision,normalizeResponse,normalizeFollowup,normalizeWithdrawal,participants} from './contract-policy.js';
 import type {FollowupContractInput,WithdrawContractInput,WithdrawalReceipt,HumanSession} from './contract.types.js';
 import type {ProposeContractInput,ReviseContractInput,ContractResponseInput,ProposalReceipt,ResponseReceipt} from './contract.types.js';
@@ -147,6 +148,7 @@ export class ContractRepository{
      const confirmedAt=new Date();
      await tx.contractProposalVersion.update({where:{id:target.id},data:{status:'CONFIRMED',confirmedAt}});
      await tx.developmentContract.update({where:{id:proposal.contractId},data:proposal.kind==='RETIRE'?{status:'RETIRED',currentVersionId:null,retirementVersionId:target.id,retiredAt:confirmedAt}:{status:'ACTIVE',currentVersionId:target.id,lastConfirmedVersionId:target.id,confirmedAt}});
+     await requeueContractEvidenceJobs(tx,projectId);
      await tx.contractProposal.update({where:{id:proposal.id},data:{lifecycle:'CONFIRMED'}});
      await notify(tx,target.id,target.participants.map(p=>p.userId),'CONFIRMED');
     }
