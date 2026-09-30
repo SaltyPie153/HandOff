@@ -16,12 +16,11 @@ Node.js24.19.0, PostgreSQL17 Docker의 disposable Compose 시험 환경을 사�
 | requeue·worker·게시 경합 순차 실행 | 종료0, 실제 DB22/22. 확정 이벤트, 이전 실행 무효화, 사람 종료 경합 양방향, 구버전·모델/권한 실패 제외 |
 | `npm run test --workspace @handoff/web` | 종료0,67/67. 최초/변경 도움말 표시·폐기 미표시 |
 | `node node_modules/@playwright/test/cli.js test tests/e2e/contract-evidence.spec.ts` | 종료0,1/1. A/B 웹 합의→MCP 요청→C 최소 회신→폐기 뒤 B 비공개 검토 |
-
 | `npm run build` | 종료0. API·웹·MCP 빌드 |
 | `npm run typecheck` | 종료0. 세 workspace 타입 검사 |
-| `npm test` | 종료0. scripts23, API63통과/DB59skip, 웹67, MCP5통과 |
-| `npm run test:integration` | 종료0. 시험 DB migration·API 실행 및 모든 등록 통합 파일·probe 검사 |
-| `npm run test:e2e` | 종료0.13/13(1.8분), 새 계약 근거 흐름 포함 |
+| `npm test` | 수정 후 종료0. scripts23, API63통과/DB62skip, 웹67, MCP5통과 |
+| `npm run test:integration` | 수정 후 종료0. 시험 DB migration·API 실행 및27개 통합 파일·probe 검사 |
+| `npm run test:e2e` | 수정 후 종료0.13/13(2.0분), 새 계약 근거 흐름 포함 |
 | `pwsh -NoProfile -File scripts/check-harness.ps1` | 종료0,14필수 파일·56로컬 링크 PASS. PRODUCT: NOT_RUN(제품 검증은 위 별도 실행) |
 | `pwsh -NoProfile -File scripts/test-harness.ps1` | 종료0,18격리 시나리오 PASS |
 | `git diff --check` | 종료0 |
@@ -35,6 +34,23 @@ Node.js24.19.0, PostgreSQL17 Docker의 disposable Compose 시험 환경을 사�
 - 기존 경합 시험은 두 계약 행 잠금 대기를 기대했다. 새 순서의 첫 계약 행·후속 프로젝트 advisory 대기를 각각 실제로 관측하도록 수정해 통과했다.
 - focused helper가 여러 파일을 동시에 실행해 전역 worker 큐에서 시험 간섭1건이 발생했다. 단독8/8과 정식 runner의 순차 실행을 확인하고 helper를 같은 순서로 맞춰22/22 통과했다. 동일 시험 안의 동시 worker 검사는 유지했다.
 - 의도한 RED 실패는 구현 누락을 입증한 검사다. 해결되지 않은 제품 실패로 보고하지 않는다.
+
+## 독립 리뷰와 수정
+
+- `gpt-6-astra` 읽기 전용 전체 변경 리뷰: Critical0, Important1, Minor0, 판단 보류0. 리뷰 자체에서는 테스트를 실행하지 않았다.
+- 재확인 SELECT 직후 시작한 기존 PENDING/새 요청/재전송이 아직 미확정인 계약을 읽고 이벤트를 놓치는 경합을 실제 DB에서3건 RED로 재현했다.
+- 조건부 claim을 프로젝트 공유 잠금 안의 짧은 트랜잭션으로 변경했다. 세 경우 모두 실제 advisory lock 대기를 관측하고 확정 후 자동 회신1건으로 끝났다. 재확인 회귀11/11, skip0, 종료0.
+- 수정 후 전체 build/typecheck/unit/integration/E2E 모두 종료0. 단위 scripts23/API63통과·62DBskip/웹67/MCP5, 통합27파일, E2E13/13으로 최종 코드를 재검증했다. 추가 리뷰를 반복하지 않고 RED→GREEN과 전체 회귀로 수정 근거를 확인한다.
+- 빌드의 Vite500kB chunk 경고와 일부 시험의 Node/pg 경고는 종료 코드0의 비차단 경고다. 이번 기능의 미해결 실패는 없다.
+
+## 구현 중 결정
+
+| 결정 | 이유 | 비용·영향 |
+|---|---|---|
+| Windows Node24 helper와 프로젝트 work 상태 기록 사용 | 기존 harness 관례·Windows 실행 환경 유지 | 스킬 bash 집계 대신 수동 기록, 잘못 집계하면 상태 기록 수정 필요 |
+| private publish 결과에 EVIDENCE_CHANGED 구분 추가 | 권한 실패와 근거 실패의 재확인 정책 구분 | 내부 호출 결과 타입 확장, 공개 API 입력 변경 없음 |
+| focused DB helper 파일별 순차 실행 | 정식 runner와 일치, 전역 worker 큐 시험 간섭 제거 | focused 검증 시간 증가, 같은 시험의 동시 worker 검사는 유지 |
+| claim을 프로젝트 READ 잠금 안에서 조건부 갱신 | 재확인 조회 이후 생성된 요청·버전의 이벤트 손실 방지 | 계약 쓰기 동안 작업 시작이 잠깐 대기, 외부 호출은 잠금 밖 |
 
 ## 한계와 미검증
 
