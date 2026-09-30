@@ -6,6 +6,7 @@ import { decideReply } from './reply-decision.js';
 import { type AgentRunner, ManagedAgentRunner } from './agent-runner.js';
 import { lockRequest, requireParticipants, requireGrant } from './handoff-workflow.js';
 import { AgentKeyStore } from '../admin/agent-key.store.js';
+import {collectContractEvidence,canonicalEvidenceRefs,lockContractEvidenceProject} from '../evidence/contract-evidence.js';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -43,15 +44,19 @@ export class HandoffBackgroundWorker {
     const now = new Date();
     const candidate = await this.prisma.handoffJob.findFirst({ where: { OR: [
       { status: 'PENDING' }, { status: 'PROCESSING', leaseUntil: { lt: now } }
-    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, versionId: true, status: true } });
+    ] }, orderBy: { createdAt: 'asc' }, select: { requestId: true, versionId: true, status: true,request:{select:{projectId:true}} } });
     if (!candidate) return null;
     const executionId = randomUUID();
-    const claimed = await this.prisma.handoffJob.updateMany({ where: { versionId: candidate.versionId,
+    return this.prisma.$transaction(async tx=>{
+    // A confirmation either sees this execution or commits before the claim starts.
+    await lockContractEvidenceProject(tx,candidate.request.projectId,'READ');
+    const claimed = await tx.handoffJob.updateMany({ where: { versionId: candidate.versionId,
       ...(candidate.status === 'PENDING' ? { status: 'PENDING' as const } :
         { status: 'PROCESSING' as const, leaseUntil: { lt: now } }) },
       data: { status: 'PROCESSING', attempts: { increment: 1 }, executionId,
         leaseUntil: new Date(Date.now() + 10 * 60 * 1000) } });
     return claimed.count ? { requestId: candidate.requestId, versionId: candidate.versionId, executionId } : null;
+    });
   }
 
   private async review(versionId: string, executionId: string, reason: string) {
@@ -76,7 +81,10 @@ export class HandoffBackgroundWorker {
 
   private async publish(requestId: string, versionId: string, executionId: string, version: number, body: string,
     refs: Array<{ kind: string; sourceId: string; version: string }>) {
+    const project=await this.prisma.handoffRequest.findUnique({where:{id:requestId},select:{projectId:true}});
+    if(!project)return false;
     return this.prisma.$transaction(async tx => {
+      await lockContractEvidenceProject(tx,project.projectId,'READ');
       await lockRequest(tx, requestId);
       const job = await tx.handoffJob.findUnique({ where: { versionId } });
       if (job?.status !== 'PROCESSING' || job.executionId !== executionId || !job.leaseUntil || job.leaseUntil <= new Date()) return false;
@@ -96,13 +104,18 @@ export class HandoffBackgroundWorker {
         where: { ownerId: request.recipientId, projectId: request.projectId, revokedAt: null },
         include: { snapshot: true }
       });
-      if (sources.length !== refs.length || sources.some(source => {
-        const ref = refs.find(item => item.sourceId === source.id && item.kind === source.kind);
+      const fileRefs=refs.filter(ref=>ref.kind!=='HANDOFF_CONTRACT');
+      if (sources.length !== fileRefs.length || sources.some(source => {
+        const ref = fileRefs.find(item => item.sourceId === source.id && item.kind === source.kind);
         if (!ref) return true;
         return source.kind === 'LOCAL' &&
           (!source.snapshot || source.snapshot.contentHash !== ref.version ||
             !isFreshLocalSnapshot(source.snapshot, new Date()));
-      })) return false;
+      })) return 'EVIDENCE_CHANGED' as const;
+      const contracts=await collectContractEvidence(tx,request.projectId,request.versions[0].verificationClaim,new Date());
+      const contractRefs=refs.filter(ref=>ref.kind==='HANDOFF_CONTRACT');
+      if(contracts.unavailable.length||JSON.stringify(canonicalEvidenceRefs(contracts.records))!==JSON.stringify(contractRefs)||
+        (contracts.records.length&&decideReply(request.versions[0].verificationClaim,contracts.records,[]).kind!=='AUTO_REPLY'))return 'EVIDENCE_CHANGED' as const;
       const humanReply = await tx.handoffReply.count({ where: { versionId, source: 'HUMAN' } });
       if (humanReply) {
         await tx.handoffJob.update({ where: { versionId }, data: { status: 'COMPLETED', leaseUntil: null } });
@@ -132,7 +145,7 @@ export class HandoffBackgroundWorker {
             data: { status: 'COMPLETED', leaseUntil: null } });
           continue;
         }
-        const collected = await this.evidence.collect(request.recipientId, request.projectId);
+        const collected = await this.evidence.collect(request.recipientId, request.projectId,new Date(),version.verificationClaim);
         const decision = decideReply(version?.verificationClaim ?? null, collected.records, collected.unavailable);
         if (decision.kind === 'REVIEW_REQUIRED') { await this.review(job.versionId, job.executionId, decision.reason); continue; }
         const keyState = await this.keyStore.read();
@@ -141,17 +154,20 @@ export class HandoffBackgroundWorker {
         }
         const confirmed = await this.agent.confirmExplicitClaim(version.verificationClaim!, collected.records, keyState.key);
         if (!confirmed) { await this.review(job.versionId, job.executionId, 'Upstage가 명시적 근거를 확인하지 못했습니다'); continue; }
-        const current = await this.evidence.collect(request.recipientId, request.projectId);
+        const current = await this.evidence.collect(request.recipientId, request.projectId,new Date(),version.verificationClaim);
         const second = decideReply(version.verificationClaim, current.records, current.unavailable);
-        if (second.kind !== 'AUTO_REPLY' || JSON.stringify(second.evidenceRefs) !== JSON.stringify(decision.evidenceRefs)) {
+        const refs=canonicalEvidenceRefs(collected.records);
+        if (second.kind !== 'AUTO_REPLY' || JSON.stringify(canonicalEvidenceRefs(current.records)) !== JSON.stringify(refs)) {
           await this.review(job.versionId, job.executionId, '근거가 처리 중 변경되었습니다'); continue;
         }
         const publication = await this.keyStore.withGeneration(keyState.generation, () =>
-          this.publish(request.id, job.versionId, job.executionId, version.version, decision.publicBody, decision.evidenceRefs));
+          this.publish(request.id, job.versionId, job.executionId, version.version, decision.publicBody, refs));
         if (!publication.unchanged) {
           await this.review(job.versionId, job.executionId, 'Upstage 키 설정이 변경되었습니다'); continue;
         }
-        if (!publication.value) {
+        if(publication.value==='EVIDENCE_CHANGED'){
+          await this.review(job.versionId,job.executionId,'게시 전 근거가 변경되었습니다');
+        }else if (!publication.value) {
           await this.review(job.versionId, job.executionId, '게시 전 권한 또는 버전이 변경되었습니다');
         }
       } catch {
