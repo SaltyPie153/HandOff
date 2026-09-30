@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { EvidenceRecord } from '../evidence/evidence.service.js';
+import {parseClaim,extractClaimLines} from '../evidence/evidence-clause.js';
 
 export interface AgentRunner {
   confirmExplicitClaim(claim: string, evidence: EvidenceRecord[], apiKey: string): Promise<boolean>;
@@ -8,9 +9,11 @@ export interface AgentRunner {
 export class ManagedAgentRunner implements AgentRunner {
   async confirmExplicitClaim(claim: string, evidence: EvidenceRecord[], apiKey: string): Promise<boolean> {
     if (!apiKey) return false;
-    const key = claim.split(':', 1)[0];
-    const lines = evidence.map(source => source.content.split(/\r?\n/)
-      .filter(line => line.trim().startsWith(`${key}: `)).slice(0, 10));
+    const parsed=parseClaim(claim);
+    if(!parsed||!evidence.length)return false;
+    const extracted=evidence.map(source=>extractClaimLines(source.content,parsed.key));
+    if(extracted.some(item=>item.malformed||!item.values.length||item.values.some(value=>value!==parsed.value)))return false;
+    const lines=extracted.map(item=>item.lines.slice(0,10));
     const client = new OpenAI({ apiKey, baseURL: 'https://api.upstage.ai/v1', maxRetries: 0, timeout: 30_000 });
     try {
       const response = await client.chat.completions.create({
