@@ -68,7 +68,7 @@ integration('contract races prove lock waits and both winner orders for agreemen
     pending.push(commands[first]());void pending[0].catch(()=>{});
     await waitForLocks(f,'FOR UPDATE OF c',1);
     pending.push(commands[first==='agree'?'other':'agree']());void pending[1].catch(()=>{});
-    await waitForLocks(f,'FOR UPDATE OF c',2);
+    await waitForLocks(f,'pg_advisory_xact_lock',1);
    }finally{release();await blocker;await Promise.allSettled(pending);}
    const outcomes=await Promise.allSettled(pending);
    assert.equal(outcomes[0].status,'fulfilled',`${kind}/${first} queued first must win`);

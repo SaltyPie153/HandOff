@@ -5,6 +5,7 @@ import { isAbsolute as isWindowsAbsolute } from 'node:path/win32';
 import { PrismaService } from '../database/prisma.service.js';
 import { decryptEvidence, encryptEvidence } from './evidence-crypto.js';
 import { isFreshLocalSnapshot } from './evidence-policy.js';
+import {collectContractEvidence} from './contract-evidence.js';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const canonicalPath = (value: string) => value.replaceAll('\\', '/').replace(/\/$/, '');
@@ -130,7 +131,7 @@ export class EvidenceService {
       version: commit.sha, observedAt: new Date() };
   }
 
-  async collect(ownerId: string, projectId: string, now = new Date()): Promise<EvidenceCollection> {
+  async collect(ownerId: string, projectId: string, now = new Date(), claim?:string|null): Promise<EvidenceCollection> {
     await this.requireMember(ownerId, projectId);
     const sources = await this.prisma.evidenceSource.findMany({ where: { ownerId, projectId, revokedAt: null }, include: { snapshot: true } });
     const records: EvidenceRecord[] = [];
@@ -147,7 +148,8 @@ export class EvidenceService {
         catch { unavailable.push('GITHUB_UNAVAILABLE'); }
       }
     }
-    // The existing app has no agreed-contract table yet. Never treat a pending handoff as a confirmed contract.
+    const contracts=await collectContractEvidence(this.prisma,projectId,claim,now);
+    records.push(...contracts.records);unavailable.push(...contracts.unavailable);
     return { records, unavailable };
   }
 }

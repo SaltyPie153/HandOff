@@ -43,6 +43,7 @@ function ProposalPage({projectId,proposalId,viewerId}:{projectId:string;proposal
    <label>제안 버전 <select aria-label="제안 버전" value={detail.version} disabled={busy} onChange={e=>void refresh(Number(e.target.value))}>{detail.versions.map(v=><option key={v.version} value={v.version}>버전 {v.version} · {statusLabel[v.status]}</option>)}</select></label>
    {detail.blocked&&<Alert severity="warning">담당자 변경 필요: 필수 참여자의 프로젝트 권한을 확인해 주세요.</Alert>}
    <Typography component="h2" variant="h6">{detail.kind==='RETIRE'?'폐기 이유':'검토할 제안 본문'}</Typography>
+   {detail.kind!=='RETIRE'&&<Typography variant="body2">자동 사실 확인에 사용할 항목은 USER_ID_FORMAT: uuid-v4처럼 KEY: 값 한 줄로 명시해 주세요. 자연어만으로는 자동 확인하지 않습니다.</Typography>}
    <Typography sx={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{detail.proposedBody}</Typography>
    {detail.withdrawal&&<Alert severity="info">철회 사유: {detail.withdrawal.reason} · {new Date(detail.withdrawal.withdrawnAt).toLocaleString()}</Alert>}
    <Typography component="h2" variant="h6">이 버전의 참여자</Typography>
