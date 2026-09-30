@@ -7,6 +7,12 @@ afterEach(()=>{cleanup();vi.unstubAllGlobals();window.history.replaceState({},''
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status});
 const initial={contractId:'contract',proposalId:'proposal',publicTitle:'계약 시험',senderId:'A',recipientId:'B',currentVersion:1,versionId:'v1',version:1,proposedBody:'비공개 제안 본문',status:'IN_REVIEW',blocked:false,canRespond:true,canRevise:true,
  participants:[{userId:'A',role:'SENDER',displayName:'Alice'},{userId:'B',role:'RECIPIENT',displayName:'Bob'},{userId:'PM',role:'REQUIRED_PM',displayName:'PM'}],versions:[{version:1,status:'IN_REVIEW',createdAt:'2026-09-29T00:00:00Z'}],responses:[]};
+it.each(['INITIAL','CHANGE','RETIRE'])('%s shows evidence format help only for a contract body',async kind=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>json({...initial,kind})));render(<ContractProposalPage projectId="project" proposalId="proposal" viewerId="A"/>);
+ await screen.findByText('비공개 제안 본문');
+ const help=screen.queryByText('자동 사실 확인에 사용할 항목은 USER_ID_FORMAT: uuid-v4처럼 KEY: 값 한 줄로 명시해 주세요. 자연어만으로는 자동 확인하지 않습니다.');
+ if(kind==='RETIRE')expect(help).not.toBeInTheDocument();else expect(help).toBeVisible();
+});
 it('sender must agree and sees the exact-body team publication notice',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>json(initial)));render(<ContractProposalPage projectId="project" proposalId="proposal" viewerId="A"/>);
  expect(await screen.findByRole('button',{name:'이 버전에 동의'})).toBeEnabled();
