@@ -1,6 +1,11 @@
 import type {Prisma} from '../generated/prisma/client.js';
 import type {EvidenceCollection,EvidenceRecord} from './evidence.service.js';
 import {parseClaim,extractClaimLines} from './evidence-clause.js';
+export async function lockContractEvidenceProject(tx:Prisma.TransactionClient,projectId:string,mode:'READ'|'WRITE'):Promise<void>{
+  const key='handoff:contract-evidence:'+projectId;
+  if(mode==='READ')await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended(${key},0))::text`;
+  else await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))::text`;
+}
 export async function collectContractEvidence(db:Pick<Prisma.TransactionClient,'developmentContract'>,projectId:string,
   claim:string|null|undefined,now:Date):Promise<EvidenceCollection>{
   const parsed=parseClaim(claim),result:EvidenceCollection={records:[],unavailable:[]};
