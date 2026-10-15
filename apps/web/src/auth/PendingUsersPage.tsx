@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, CircularProgress, List, ListItem, Stack, Typography } from '@mui/material';
 import { post } from './api';
+import {EmptyState,PageHeader,Section} from '../ui/primitives';
 
 type PendingUser = { id: string; createdAt: string; identities: Array<{ provider: string; displayName: string | null; email: string | null }> };
 
@@ -28,17 +29,19 @@ export function PendingUsersPage() {
     } catch { setError(true); }
     finally { setBusy(null); }
   }
-  return <Stack spacing={2}>
-    <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>가입 승인 대기 목록</Typography>
+  return <Stack spacing={3}>
+    <PageHeader title="가입 승인 대기 목록" description="가입을 승인한 뒤 프로젝트에 배정해야 해당 프로젝트에 접근할 수 있습니다."/>
     {error && <Alert severity="error" role="alert">목록을 불러오거나 승인하지 못했습니다. 권한과 연결 상태를 확인해 주세요.</Alert>}
     {!users && !error && <CircularProgress aria-label="대기 목록 불러오는 중" />}
-    {users?.length === 0 && <Typography>대기 중인 회원이 없습니다.</Typography>}
-    <List>{users?.map(user => <ListItem key={user.id} sx={{ display: 'flex', gap: 2, justifyContent: 'space-between' }}>
+    <Section>
+    {users?.length === 0 && <EmptyState>대기 중인 회원이 없습니다.</EmptyState>}
+    <List disablePadding>{users?.map(user => <ListItem key={user.id} disableGutters sx={{ display:'flex',gap:2,py:2,justifyContent:'space-between',borderBottom:'1px solid',borderColor:'divider' }}>
       <Stack>
         <Typography>{user.identities[0]?.displayName ?? '이름 없음'}</Typography>
         <Typography variant="body2" color="text.secondary">{user.identities.map(identity => identity.provider).join(', ')} · {new Date(user.createdAt).toLocaleDateString('ko-KR')}</Typography>
       </Stack>
       <Button variant="contained" disabled={busy !== null} onClick={() => void approve(user.id)}>승인</Button>
     </ListItem>)}</List>
+    </Section>
   </Stack>;
 }

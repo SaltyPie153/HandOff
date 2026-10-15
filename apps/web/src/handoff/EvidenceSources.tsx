@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
 import { loadMine, type ProjectView } from '../projects/api';
 import { loadEvidence, registerGithubEvidence, registerLocalEvidence, revokeEvidence, type EvidenceSource } from './api';
 
@@ -54,18 +54,23 @@ export function EvidenceSources() {
         {projects.map(room => <MenuItem key={room.id} value={room.id}>{room.name}</MenuItem>)}
       </Select>
     </FormControl>
+    <Box sx={{display:'grid',gridTemplateColumns:{xs:'minmax(0,1fr)',lg:'repeat(2,minmax(0,1fr))'},gap:3}}>
+    <Stack spacing={2} sx={{p:2.5,bgcolor:'#f6f7fb',borderRadius:2}}>
+    <Typography component="h3" variant="h6">로컬 계약 파일</Typography>
     <TextField label="허용할 로컬 계약 파일의 절대 경로" value={localPath} onChange={event => setLocalPath(event.target.value)} />
     <Button disabled={!projectId || !localPath || busy} onClick={() => void addLocal()}>로컬 파일 지정</Button>
     {newToken && <Alert severity="warning">동기화 토큰은 지금 한 번만 표시됩니다. HANDOFF_SYNC_TOKEN 환경 변수에 보관하세요.
       <TextField fullWidth label="새 동기화 토큰" value={newToken} slotProps={{ input: { readOnly: true } }} sx={{ mt: 1 }} />
     </Alert>}
-    <Typography>GitHub 읽기 전용 근거</Typography>
+    </Stack><Stack spacing={2} sx={{p:2.5,bgcolor:'#f6f7fb',borderRadius:2}}>
+    <Typography component="h3" variant="h6">GitHub 읽기 전용 근거</Typography>
     <TextField label="GitHub 소유자" value={owner} onChange={event => setOwner(event.target.value)} />
     <TextField label="GitHub 저장소" value={repo} onChange={event => setRepo(event.target.value)} />
     <TextField label="저장소 내 파일 경로" value={path} onChange={event => setPath(event.target.value)} />
     <TextField label="기준 브랜치 또는 커밋" value={ref} onChange={event => setRef(event.target.value)} />
     <Button disabled={!projectId || !owner || !repo || !path || !ref || busy} onClick={() => void addGithub()}>GitHub 파일 지정</Button>
-    {sources.map(source => <Stack key={source.id} spacing={1}>
+    </Stack></Box>
+    {sources.map(source => <Stack key={source.id} spacing={1} sx={{p:2,border:'1px solid',borderColor:'divider',borderRadius:2}}>
       <Typography>{source.kind === 'LOCAL' ? source.localPath : `${source.githubOwner}/${source.githubRepo}/${source.githubPath}@${source.githubRef}`}</Typography>
       {source.kind === 'LOCAL' && <Typography color="text.secondary">마지막 동기화: {source.snapshot?.syncedAt ? new Date(source.snapshot.syncedAt).toLocaleString() : '없음'}</Typography>}
       <Button disabled={busy} onClick={() => void remove(source.id)}>근거 지정 해제</Button>

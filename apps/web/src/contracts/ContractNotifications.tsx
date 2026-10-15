@@ -5,8 +5,9 @@ export function ContractNotifications({projectId}:{projectId:string}){
  const [data,setData]=useState<{summary:ContractSummary;notes:ContractNotification[]}|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0),[busy,setBusy]=useState(false);
  useEffect(()=>{let live=true;setError('');setData(null);Promise.all([loadSummary(projectId),loadNotifications(projectId)]).then(([summary,notes])=>{if(live)setData({summary,notes});}).catch(e=>{if(live)setError(errorLabel(e));});return()=>{live=false;};},[projectId,reload]);
  const read=async(id:string)=>{setBusy(true);try{await markRead(projectId,id);setReload(n=>n+1);}catch(e){setError(errorLabel(e));}finally{setBusy(false);}};
- return <Stack spacing={1}><Typography component="h2" variant="h6">계약 알림</Typography>{error&&<Alert severity="error">{error}</Alert>}
-  {data&&<><Typography>동의 검토 필요 {data.summary.needsReview} · 수정 필요 {data.summary.needsChanges} · 읽지 않은 알림 {data.summary.unreadNotifications}</Typography>
-   {data.notes.map(n=><Stack key={n.id}><Link href={`/projects/${projectId}/contract-proposals/${n.proposalId}?version=${n.version}`}>{n.publicTitle} · 버전 {n.version} · {n.kind==='CONFIRMED'&&n.proposalKind==='RETIRE'?'계약 폐기 합의':kinds[n.kind]}</Link>{!n.readAt&&<Button disabled={busy} onClick={()=>void read(n.id)}>계약 알림 읽음</Button>}</Stack>)}</>}
+ return <Stack spacing={2}><Typography component="h2" variant="h6">계약 알림</Typography>{error&&<Alert severity="error">{error}</Alert>}
+  {data&&<><Typography variant="body2" sx={{p:1.5,bgcolor:'#f6f7fb',borderRadius:2}}>동의 검토 필요 {data.summary.needsReview} · 수정 필요 {data.summary.needsChanges} · 읽지 않은 알림 {data.summary.unreadNotifications}</Typography>
+   {data.notes.length===0&&<Typography color="text.secondary">새 계약 알림이 없습니다.</Typography>}
+   {data.notes.map(n=><Stack key={n.id} spacing={1} sx={{py:2,borderBottom:'1px solid',borderColor:'divider'}}><Link href={`/projects/${projectId}/contract-proposals/${n.proposalId}?version=${n.version}`}>{n.publicTitle} · 버전 {n.version} · {n.kind==='CONFIRMED'&&n.proposalKind==='RETIRE'?'계약 폐기 합의':kinds[n.kind]}</Link>{!n.readAt&&<Button disabled={busy} onClick={()=>void read(n.id)}>계약 알림 읽음</Button>}</Stack>)}</>}
   <Button onClick={()=>setReload(n=>n+1)}>계약 알림 새로고침</Button></Stack>;
 }

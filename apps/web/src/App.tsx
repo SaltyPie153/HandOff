@@ -19,6 +19,8 @@ import {ContractListPage} from './contracts/ContractListPage';
 import {ContractDetailPage} from './contracts/ContractDetailPage';
 import {ContractInboxPage} from './contracts/ContractInboxPage';
 import {ContractProposalPage} from './contracts/ContractProposalPage';
+import {AppShell} from './ui/AppShell';
+import {PageHeader,Section} from './ui/primitives';
 
 export default function App() {
   const health = window.location.pathname === '/dev/health';
@@ -46,15 +48,17 @@ export default function App() {
   } else if (path === '/admin/projects') {
     content = state.viewer.isServiceAdmin ? <AdminProjectsPage /> : <Alert severity="error">관리자만 열 수 있습니다.</Alert>;
   } else if (path === '/settings') {
-    content = <Stack spacing={2}>
-      <Typography component="h1" variant="h4">로그인 수단 관리</Typography>
+    content = <Stack spacing={3}>
+      <PageHeader title="설정" description="로그인 계정과 Codex 연결, 자동 회신에 사용할 근거를 관리하세요."/>
       {error && <Alert severity={error === 'cancelled' ? 'info' : 'error'}>
         {error === 'cancelled' ? '계정 연결이 취소되었습니다.' : '계정 연결에 실패했습니다. 다른 회원에게 연결된 계정인지 확인해 주세요.'}
       </Alert>}
-      <AccountLinks linkedProviders={state.viewer.linkedProviders} />
-      <McpGrants />
-      <EvidenceSources />
-      {state.viewer.isServiceAdmin && <AgentKeySettings />}
+      <Box sx={{display:'grid',gridTemplateColumns:{xs:'minmax(0,1fr)',lg:'minmax(0,1fr) minmax(0,1fr)'},gap:3}}>
+        <Section title="로그인 수단 관리"><AccountLinks linkedProviders={state.viewer.linkedProviders} /></Section>
+        <Section><McpGrants /></Section>
+      </Box>
+      <Section><EvidenceSources /></Section>
+      {state.viewer.isServiceAdmin && <Section><AgentKeySettings /></Section>}
     </Stack>;
   } else if (/^\/projects\/[0-9a-f-]{36}\/contract-proposals\/[0-9a-f-]{36}$/i.test(path)) {
     content=<ContractProposalPage projectId={path.split('/')[2]} proposalId={path.split('/')[4]} viewerId={state.viewer.id}/>;
@@ -77,10 +81,13 @@ export default function App() {
   } else {
     content = <ProjectSelectPage isServiceAdmin={state.viewer.isServiceAdmin} />;
   }
+  if (!health&&!state.loading&&!state.unavailable&&state.viewer?.status==='APPROVED') {
+    return <AppShell path={path} isServiceAdmin={state.viewer.isServiceAdmin}>{content}</AppShell>;
+  }
   return (
     <Box component="main" sx={{ minHeight: "100vh", display: "grid", alignItems: "center", py: 6 }}>
       <Container maxWidth="sm">
-        <Paper elevation={2} sx={{ p: { xs: 3, sm: 5 } }}>
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 5 } }}>
           {content}
         </Paper>
       </Container>
