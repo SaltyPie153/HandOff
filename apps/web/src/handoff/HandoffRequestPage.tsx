@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material';
 import { HandoffApiError, loadRequest, loadRequestVersion, publishReply, statusLabel, type RequestDetail } from './api';
 import { HandoffResponseForm } from './HandoffResponseForm';
+import {PageHeader,Section,StatusBadge,twoColumns} from '../ui/primitives';
 
 export function HandoffRequestPage({ projectId, requestId, viewerId }: { projectId: string; requestId: string; viewerId: string }) {
   const [detail, setDetail] = useState<RequestDetail | null>(null);
@@ -40,34 +41,43 @@ export function HandoffRequestPage({ projectId, requestId, viewerId }: { project
     } catch { setError('FAILED'); }
     finally { setBusy(false); }
   }
-  return <Stack spacing={2}>
+  return <Stack spacing={3}>
     <Link href={`/projects/${projectId}/feed`}>팀 피드로</Link>
     {!detail && !error && <CircularProgress aria-label="요청 불러오는 중" />}
     {error && <Alert severity={error === 'DENIED' ? 'warning' : 'error'}>{error === 'DENIED' ? '접근 권한이 없습니다.' : '요청을 처리하지 못했습니다.'}</Alert>}
     {detail && <>
-      <Typography component="h1" variant="h4">{detail.publicTitle}</Typography>
-      <Typography color="text.secondary">비공개 요청 · 버전 {detail.version}</Typography>
-      <Typography>처리 상태: {statusLabel[detail.status]}</Typography>
+      <PageHeader title={detail.publicTitle} eyebrow="PRIVATE REQUEST" description={`비공개 요청 · 버전 ${detail.version}`} actions={<StatusBadge tone={detail.status==='ACKNOWLEDGED'?'success':detail.status==='CHANGES_REQUESTED'?'warning':'info'}>처리 상태: {statusLabel[detail.status]}</StatusBadge>}/>
+      <Stack direction={{xs:'column',sm:'row'}} spacing={2} sx={{alignItems:{sm:'center'}}}>
       <label>요청 버전 <select aria-label="요청 버전" value={detail.version} onChange={e=>{setSelectedVersion(Number(e.target.value));setBody('');setPreview(false);setPosted(false);}}>
         {detail.versions.map(v=><option key={v.version} value={v.version}>버전 {v.version} · {statusLabel[v.status]}</option>)}
       </select></label>
       <Button onClick={()=>{setSelectedVersion(undefined);setReload(n=>n+1);}}>최신 버전 새로고침</Button>
+      </Stack>
       {detail.version!==detail.currentVersion&&<Alert severity="info">과거 버전입니다. 확인과 공개 회신은 최신 버전에서 처리하세요.</Alert>}
+      <Box sx={twoColumns}>
+      <Stack spacing={3}>
+      <Section title="요청 내용" description="송신자와 수신자만 열람할 수 있습니다."><Stack spacing={2}>
       <Typography sx={{ whiteSpace: 'pre-wrap' }}>{detail.privateBody}</Typography>
       {detail.verificationClaim && <Typography>자동 확인 항목: {detail.verificationClaim}</Typography>}
       {detail.response&&<Stack spacing={1}>
         <Typography>사람의 응답: {detail.response.action==='ACKNOWLEDGE'?'내용 확인 완료':'수정 요청'} · {new Date(detail.response.createdAt).toLocaleString()}</Typography>
         {detail.response.comment&&<Typography sx={{whiteSpace:'pre-wrap'}}>비공개 수정 의견: {detail.response.comment}</Typography>}
       </Stack>}
-      {detail.canRespond&&viewerId===detail.recipientId&&<HandoffResponseForm key={detail.versionId} projectId={projectId} requestId={requestId} version={detail.version} comment={comment} onCommentChange={setComment} onSaved={()=>{setComment('');setReload(n=>n+1);}}/>}
+      </Stack></Section>
       {viewerId===detail.senderId&&detail.version===detail.currentVersion&&<Alert severity="info">
         새 버전은 Codex에 재전송을 요청하세요. 요청 ID: {requestId}, 현재 버전: {detail.currentVersion}. 수정 의견과 최신 내용을 확인한 뒤 새 버전을 전송할 수 있습니다.
       </Alert>}
-      <Typography component="h2" variant="h6">팀 공개 회신</Typography>
-      {detail.replies.map(reply => <Typography key={reply.id} sx={{ whiteSpace: 'pre-wrap' }}>
+      <Section title="팀 공개 회신" actions={<StatusBadge tone="info">팀 전체 공개</StatusBadge>}><Stack spacing={2}>
+      {detail.replies.length===0&&<Typography color="text.secondary">아직 공개 회신이 없습니다.</Typography>}
+      {detail.replies.map(reply => <Box key={reply.id} sx={{borderLeft:'2px solid',borderColor:reply.source==='CODEX_AUTO'?'primary.light':'divider',pl:2}}><Typography sx={{ whiteSpace: 'pre-wrap' }}>
         버전 {reply.version} · {reply.source === 'CODEX_AUTO' ? '서버 자동 회신 · ' : '회원 회신 · '}{reply.body}
-      </Typography>)}
+      </Typography></Box>)}
+      </Stack></Section>
+      </Stack>
+      <Stack spacing={3}>
+      {detail.canRespond&&viewerId===detail.recipientId&&<Section><HandoffResponseForm key={detail.versionId} projectId={projectId} requestId={requestId} version={detail.version} comment={comment} onCommentChange={setComment} onSaved={()=>{setComment('');setReload(n=>n+1);}}/></Section>}
       {viewerId === detail.recipientId && detail.version===detail.currentVersion && <>
+        <Section title="공개 회신 작성" description="게시 전 팀에 공유할 내용을 확인하세요."><Stack spacing={2}>
         {detail.job?.status === 'REVIEW_REQUIRED' && <Alert severity="info">자동 회신 대신 검토가 필요합니다. {detail.job.reviewReason}</Alert>}
         {detail.job?.reviewDraft && <Typography>비공개 검토 초안: {detail.job.reviewDraft}</Typography>}
         <TextField label="팀 공개 회신" value={body} multiline minRows={3} onChange={event => { setBody(event.target.value); setPreview(false); }} />
@@ -78,7 +88,10 @@ export function HandoffRequestPage({ projectId, requestId, viewerId }: { project
           <Button variant="contained" disabled={busy} onClick={() => void post()}>팀에 게시</Button>
         </Stack>}
         {posted && <Alert severity="success">회신을 게시했습니다.</Alert>}
+        </Stack></Section>
       </>}
+      </Stack>
+      </Box>
     </>}
   </Stack>;
 }

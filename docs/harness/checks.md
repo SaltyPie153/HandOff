@@ -4,6 +4,10 @@
 
 ## 현재 구성된 앱 기본 골격 검사
 
+GitHub Actions의 `CI / Build, typecheck and test`는 `develop`·`main` 대상 PR과 두 브랜치의 push에서 실행한다. Ubuntu 24.04, `.node-version`에 고정된 Node.js, npm 10.9.2로 `npm ci` 후 `npm run dev:init`, `npm run build`, `npm run typecheck`, `npm test`를 순서대로 실행한다. Actions는 읽기 권한만 사용하며 OAuth·모델 API 키나 저장소 비밀 설정이 필요하지 않다. 생성된 `.env`는 빌드용 로컬 설정이며 DB를 시작하거나 마이그레이션하지 않는다.
+
+이 CI의 테스트 범위는 scripts·API·웹·MCP의 DB 비의존 테스트다. DB 통합 테스트는 skip되며 `test:integration`과 브라우저 `test:e2e`는 별도로 실행해야 한다. CI 추가만으로 필수 체크를 강제하는 브랜치 보호가 설정되지는 않는다.
+
 | 명령 | 확인 범위 |
 |---|---|
 | `npm run build`, `npm run typecheck`, `npm test` | 웹·API·MCP 빌드, 타입 및 DB 비의존 테스트 |
